@@ -937,8 +937,13 @@ function navigate(route){
 window.addEventListener('hashchange', () => render());
 
 function render(){
-  const route = (window.location.hash || '#dashboard').slice(1);
+  let route = (window.location.hash || '#dashboard').slice(1);
   const content = document.getElementById('content');
+
+  if (isAuthenticated() && route === 'login'){
+    route = 'dashboard';
+    window.location.hash = 'dashboard';
+  }
 
   if (!isAuthenticated()){
     clearAuth();
@@ -1032,6 +1037,7 @@ function attachLoginBehavior(){
     if (user === AUTH_USER && pass === AUTH_PASS){
       localStorage.setItem(AUTH_KEY, AUTH_USER);
       updateLastActivity();
+      window.location.hash = 'dashboard';
       buildNav(); buildTopbar(); render();
     } else {
       Swal.fire({ title: 'Acceso denegado', text: 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
