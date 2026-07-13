@@ -476,6 +476,12 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
   width:34px; height:34px; border-radius:8px; border:1px solid var(--line);
   background: var(--panel); color: var(--text); cursor:pointer; flex:0 0 auto;
 }
+.auth-screen{ min-height:calc(100vh - 80px); display:flex; align-items:center; justify-content:center; padding:20px; }
+.login-panel{ max-width:420px; width:100%; padding:28px; box-sizing:border-box; }
+.login-panel .form-grid{ gap:16px; }
+.login-panel .modal-actions{ justify-content:flex-end; margin-top:16px; }
+#userBox{ display:flex; align-items:center; gap:10px; margin-left:auto; }
+#userBox .topbar-user{ font-weight:700; color:var(--text); }
 </style>
 </head>
 <body>
@@ -499,6 +505,7 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
     <div id="topbar">
       <button class="menu-btn" id="menuBtn">☰</button>
       <div class="ticker" id="ticker"></div>
+      <div id="userBox"></div>
       <div id="search-box">
         <span>⌕</span>
         <input id="globalSearch" placeholder="Buscar producto en todos los proveedores…" />
@@ -538,9 +545,28 @@ function esc(s){
 }
 
 const STORAGE_KEY = 'agromin_state_v1';
+const AUTH_USER = 'AGROMIN';
+const AUTH_PASS = '123';
+const AUTH_KEY = 'agromin_user';
+const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
+const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
 const BASE_DATA = AGROMIN_DATA;
 
 function cloneData(data){ return JSON.parse(JSON.stringify(data)); }
+function isAuthenticated(){ return localStorage.getItem(AUTH_KEY) === AUTH_USER && !isSessionExpired(); }
+function isSessionExpired(){
+  const last = Number(localStorage.getItem(AUTH_LAST_ACTIVITY));
+  return !last || (Date.now() - last) > AUTH_TIMEOUT_MS;
+}
+function updateLastActivity(){
+  if (localStorage.getItem(AUTH_KEY) === AUTH_USER){
+    localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
+  }
+}
+function clearAuth(){
+  localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(AUTH_LAST_ACTIVITY);
+}
 function ensureProductIdentity(product, supplierName, index){
   if (!product._uid) product._uid = `${supplierName}-${index}-${Math.random().toString(36).slice(2,8)}`;
   if (product.isActive === undefined) product.isActive = true;
@@ -826,6 +852,22 @@ function buildTopbar(){
     <span class="sep"></span>
     <span>PRODUCTOS <b>${SUPPLIERS.reduce((a,s)=>a+s.products.length,0)}</b></span>
   `;
+  const userBox = document.getElementById('userBox');
+  if (userBox){
+    if (isAuthenticated()){
+      userBox.innerHTML = `<span class="topbar-user">${esc(AUTH_USER)}</span><button class="btn-secondary" id="logoutBtn">Salir</button>`;
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn){
+        logoutBtn.addEventListener('click', () => {
+          clearAuth();
+          window.location.hash = 'login';
+          render();
+        });
+      }
+    } else {
+      userBox.innerHTML = '';
+    }
+  }
   // (Removed quick export/import actions per user request)
   document.getElementById('footer-date').textContent = (SUPPLIERS[0]?.meta.fechaReporte || '').slice(0,10) || '—';
   document.getElementById('footer-tc').textContent = fmtN(DATA.cambioDolar.tcComercial,2);
@@ -845,6 +887,20 @@ function render(){
   const route = (window.location.hash || '#dashboard').slice(1);
   const content = document.getElementById('content');
 
+  if (!isAuthenticated()){
+    clearAuth();
+    document.getElementById('sidebar').style.display = 'none';
+    document.getElementById('topbar').style.display = 'none';
+    setActiveNav('__none__');
+    destroyCharts();
+    content.innerHTML = viewLogin();
+    attachLoginBehavior();
+    return;
+  }
+
+  updateLastActivity();
+  document.getElementById('sidebar').style.display = 'block';
+  document.getElementById('topbar').style.display = 'flex';
   if (route.startsWith('search:')){
     destroyCharts();
     setActiveNav('__none__');
@@ -889,6 +945,70 @@ function render(){
 }
 
 /* ---------------------------- VIEW: DASHBOARD ---------------------------- */
+
+function viewLogin(){
+  return `
+    <div class="auth-screen">
+      <div class="panel login-panel">
+        <div class="view-header">
+          <div class="eyebrow">Acceso</div>
+          <div class="view-title">Iniciar sesión</div>
+          <div class="view-desc">Ingresa con usuario y contraseña para acceder a AGROMIN.</div>
+        </div>
+        <div class="form-grid">
+          <div class="form-field"><label>Usuario</label><input type="text" id="loginUser" value="" placeholder="AGROMIN" autocomplete="username"/></div>
+          <div class="form-field"><label>Contraseña</label><input type="password" id="loginPass" value="" placeholder="123" autocomplete="current-password"/></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-primary" id="loginSubmit">Ingresar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachLoginBehavior(){
+  const loginBtn = document.getElementById('loginSubmit');
+  const userInput = document.getElementById('loginUser');
+  const passInput = document.getElementById('loginPass');
+  if (!loginBtn || !userInput || !passInput) return;
+  const tryLogin = () => {
+    const user = userInput.value.trim();
+    const pass = passInput.value.trim();
+    if (user === AUTH_USER && pass === AUTH_PASS){
+      localStorage.setItem(AUTH_KEY, AUTH_USER);
+      updateLastActivity();
+      buildNav(); buildTopbar(); render();
+    } else {
+      Swal.fire({ title: 'Acceso denegado', text: 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
+    }
+  };
+  loginBtn.addEventListener('click', tryLogin);
+  userInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  passInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+}
+
+function setupAuthActivityWatcher(){
+  const refresh = () => {
+    if (localStorage.getItem(AUTH_KEY) === AUTH_USER){
+      updateLastActivity();
+    }
+  };
+  ['click','keydown','mousemove','scroll','touchstart'].forEach(evt => {
+    window.addEventListener(evt, refresh, {passive:true});
+  });
+
+  setInterval(() => {
+    if (localStorage.getItem(AUTH_KEY) === AUTH_USER && isSessionExpired()){
+      clearAuth();
+      if (window.location.hash !== '#login'){
+        window.location.hash = 'login';
+      }
+      render();
+      showToast('info', 'Sesión expirada', 'Se cerró por inactividad.');
+    }
+  }, 60 * 1000);
+}
 
 function viewDashboard(){
   const totalIngreso = SUPPLIERS.reduce((a,s)=>a+(s.meta.ingresoBruto||0),0);
@@ -2478,6 +2598,7 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 initialRecalc();
 buildNav();
 buildTopbar();
+setupAuthActivityWatcher();
 render();
 
 </script>
