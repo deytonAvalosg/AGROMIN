@@ -269,16 +269,43 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
 
 .table-toolbar{
   display:flex; align-items:center; justify-content:space-between;
-  gap:12px; margin-bottom: 14px; flex-wrap: wrap;
+  gap:12px; margin-bottom: 16px; flex-wrap: wrap;
 }
-.filter-chips{ display:flex; gap:8px; flex-wrap:wrap; }
-.chip{
-  font-family: var(--mono); font-size: 11px; padding: 5px 11px;
-  border-radius: 999px; border:1px solid var(--line); color: var(--text-dim);
+.filter-panel{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 14px 16px;
+  width:100%;
+}
+.filter-panel label{
+  font-family: var(--mono); font-size: 11px; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing:0.5px;
+}
+.filter-panel input,
+.filter-panel select{
+  background: var(--panel); border:1px solid var(--line);
+  border-radius: 10px; padding: 8px 12px;
+  color: var(--text); font-family: var(--mono); font-size:12px;
+  min-width: 140px;
+}
+.filter-panel input{
+  flex:1 1 200px;
+}
+.filter-panel .filter-group{
+  display:flex; flex-direction:column; gap:4px;
+}
+.filter-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  background: var(--panel); border:1px solid var(--line);
+  border-radius: 999px; padding: 6px 10px;
+  font-family: var(--mono); font-size:12px; color: var(--text-dim);
   cursor:pointer;
+  transition: background .15s, border-color .15s, color .15s;
 }
-.chip:hover{ border-color: var(--lime-dim); color: var(--text); }
-.chip.active{ background: var(--lime); color: #f6f8f1; border-color: var(--lime); font-weight:600; }
+.filter-chip:hover{ background: rgba(60,122,46,0.08); border-color: var(--lime); color: var(--text); }
+.filter-chip.active{ background: var(--lime); border-color: var(--lime); color: #f6f8f1; }
 .mini-search{
   display:flex; align-items:center; gap:6px;
   background: var(--panel-2); border:1px solid var(--line);
@@ -6106,36 +6133,6 @@ function viewDashboard(){
     </div>
 
     <div class="panel">
-      <div class="panel-title">Top productos por ventas <span class="hint">registradas en el sistema</span></div>
-      <div class="table-scroll">
-        <table class="data-table">
-          <thead><tr>
-            <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th>
-          </tr></thead>
-          <tbody>${(() => {
-            const salesProducts = [];
-            SUPPLIERS.forEach(s => s.products.forEach(p => {
-              const total = getSalesTotal(p);
-              if (total > 0) salesProducts.push({ p, s, total });
-            }));
-            salesProducts.sort((a,b) => b.total - a.total);
-            return salesProducts.slice(0, 6).map((entry, i) => `
-              <tr>
-                <td class="num">${i+1}</td>
-                <td class="prod-name">${esc(entry.p.producto)}</td>
-                <td><a href="#sup:${SUPPLIERS.indexOf(entry.s)}">${esc(entry.s.name)}</a></td>
-                <td class="num">${fmtInt(entry.total)}</td>
-                <td class="num">${fmtInt(getSalesRecent(entry.p, 7))}</td>
-                <td class="num">${fmtN(getSalesVelocity(entry.p), 1)} u/día</td>
-                <td class="num">${fmtN(entry.p.stock, 0)}</td>
-              </tr>
-            `).join('');
-          })()}</tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="panel">
       <div class="panel-title">Ranking de empresas por utilidad neta</div>
       <div class="table-scroll">
         <table class="data-table">
@@ -6201,16 +6198,17 @@ function viewVentas(){
 
     <div class="panel">
       <div class="panel-title">Ranking de ventas <span class="hint">ordenado por unidades vendidas</span></div>
-      <div class="table-toolbar" style="justify-content:space-between; gap:10px; flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div class="filter-panel">
+        <div class="filter-group">
           <label for="ventasSupplierFilter">Empresa</label>
           <select id="ventasSupplierFilter">
             <option value="all">Todas</option>
             ${SUPPLIERS.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}
           </select>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <button class="btn-primary" id="downloadVentasExcelBtn">Descargar Excel</button>
+        <div class="filter-group">
+          <label>Acción</label>
+          <button class="btn-primary" id="downloadVentasExcelBtn" style="min-width: auto;">Descargar Excel</button>
         </div>
       </div>
       <div class="table-scroll">
