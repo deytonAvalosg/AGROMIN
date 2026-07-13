@@ -438,6 +438,65 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
   padding: 10px 18px; font-family: var(--display); font-weight:600; font-size:13.5px; cursor:pointer;
 }
 .btn-secondary:hover{ color: var(--text); }
+.logout-btn{
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  box-shadow: 0 2px 6px rgba(185, 28, 28, 0.12);
+}
+.logout-btn:hover{
+  color: #991b1b;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+}
+.user-dropdown{
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.user-menu-btn{
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 14px; font-family: var(--display); font-weight: 600;
+  font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  transition: all 0.2s ease;
+}
+.user-menu-btn:hover{
+  border-color: var(--lime-dim); color: var(--lime-dim);
+}
+.user-icon{ font-size: 16px; }
+.user-name{ max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-caret{ font-size: 10px; transition: transform 0.2s; }
+.user-menu-btn:hover .menu-caret{ transform: translateY(2px); }
+.user-menu-content{
+  position: absolute; top: 100%; right: 0; margin-top: 6px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 200px; z-index: 100;
+  display: none; flex-direction: column;
+}
+.user-menu-content.open{
+  display: flex;
+}
+.menu-item{
+  background: none; border: none; color: var(--text); padding: 12px 14px;
+  font-family: var(--display); font-size: 13px; cursor: pointer; text-align: left;
+  transition: all 0.15s ease;
+}
+.menu-item:first-child{
+  border-radius: 8px 8px 0 0;
+}
+.menu-item:hover{
+  background: var(--panel); color: var(--lime-dim);
+}
+.menu-divider{
+  height: 1px; background: var(--line); margin: 6px 0;
+}
+.logout-item{
+  border-radius: 0 0 8px 8px;
+  color: #b91c1c;
+}
+.logout-item:hover{
+  background: linear-gradient(90deg, rgba(185, 28, 28, 0.08), transparent);
+  color: #991b1b;
+}
 .preview-note{
   font-family: var(--mono); font-size:11px; color: var(--text-faint); margin: -6px 0 14px;
 }
@@ -598,6 +657,7 @@ function esc(s){
 }
 
 const STORAGE_KEY = 'agromin_state_v1';
+const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
 const AUTH_USER = 'AGROMIN';
 const AUTH_PASS = '123';
 const AUTH_KEY = 'agromin_user';
@@ -641,6 +701,10 @@ function normalizeData(data){
       prod.deletedAt = null;
       prod.prevStock = prod.prevStock ?? (prod.stock || 0);
       prod.lotes = Array.isArray(prod.lotes) ? prod.lotes : [];
+      prod.ventas = Array.isArray(prod.ventas) ? prod.ventas : [];
+      prod.ventas = prod.ventas.filter(v => v && typeof v === 'object').map(v => ({ ...v, cantidad: Number(v.cantidad) || 0 }));
+      prod.ventasTotal = getSalesTotal(prod);
+      prod.ultimaVenta = prod.ventas.length ? prod.ventas[prod.ventas.length - 1].fecha : null;
       return prod;
     });
     supplier.inactiveProducts = supplier.inactiveProducts.map((p, pIdx) => {
@@ -676,13 +740,28 @@ function cleanupLoadedSuppliers(normalized){
 
 function loadPersistedData(){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return cleanupLoadedSuppliers(normalizeData(JSON.parse(raw)));
+    const primary = localStorage.getItem(STORAGE_KEY);
+    const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
+    const candidates = [primary, backup].filter(Boolean);
+
+    for (const raw of candidates){
+      try{
+        const parsed = JSON.parse(raw);
+        const normalized = cleanupLoadedSuppliers(normalizeData(parsed));
+        if (Array.isArray(normalized?.suppliers) && normalized.suppliers.length > 0){
+          return normalized;
+        }
+      } catch (e) {}
+    }
   } catch (e) {}
   return normalizeData(BASE_DATA);
 }
 function saveState(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); } catch(e) {}
+  try{
+    const payload = JSON.stringify(DATA);
+    localStorage.setItem(STORAGE_KEY, payload);
+    localStorage.setItem(STORAGE_BACKUP_KEY, payload);
+  } catch(e) {}
 }
 function showToast(icon, title, text=''){
   Swal.fire({
@@ -696,6 +775,46 @@ function showToast(icon, title, text=''){
     timerProgressBar: true,
     customClass: { popup: 'agromin-swal' }
   });
+}
+
+function getProductSales(product){
+  if (!product || !Array.isArray(product.ventas)) return [];
+  return product.ventas.filter(v => v && typeof v === 'object');
+}
+function getSalesTotal(product){
+  return getProductSales(product).reduce((a, v) => a + (Number(v.cantidad) || 0), 0);
+}
+function getSalesRecent(product, days = 7){
+  const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+  return getProductSales(product).reduce((a, v) => {
+    const ts = Date.parse(v.fecha || '');
+    if (!Number.isNaN(ts) && ts >= cutoff) return a + (Number(v.cantidad) || 0);
+    return a;
+  }, 0);
+}
+function getSalesVelocity(product, days = 30){
+  const total = getSalesTotal(product);
+  if (total <= 0) return 0;
+  const sales = getProductSales(product);
+  if (!sales.length) return 0;
+  const dates = sales.map(v => Date.parse(v.fecha || '')).filter(ts => !Number.isNaN(ts)).sort((a, b) => a - b);
+  if (!dates.length) return total;
+  const spanDays = Math.max(1, (Date.now() - dates[0]) / (24 * 60 * 60 * 1000));
+  return total / Math.min(days, spanDays || days);
+}
+function registerProductSale(s, product, cantidad, nota = ''){
+  const qty = Number(cantidad) || 0;
+  if (!s || !product || qty <= 0) return false;
+  product.ventas = Array.isArray(product.ventas) ? product.ventas : [];
+  product.ventas.push({
+    id: `${product._uid || ''}-sale-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    fecha: new Date().toISOString(),
+    cantidad: qty,
+    nota: (nota || '').toString().trim(),
+  });
+  product.ventasTotal = getSalesTotal(product);
+  product.ultimaVenta = product.ventas[product.ventas.length - 1].fecha;
+  return true;
 }
 
 let DATA = loadPersistedData();
@@ -852,6 +971,7 @@ function buildNav(){
   const stockBajoTotal = SUPPLIERS.reduce((a,s)=>a+stockBajoCount(s),0);
   const generalItems = [
     {id:'dashboard', label:'Dashboard general', icon:'▣'},
+    {id:'ventas', label:'Ventas', icon:'↗'},
     {id:'stockbajo', label:'Alertas de stock', icon:'⚠', tag: stockBajoTotal},
     {id:'cambio', label:'Tipo de cambio', icon:'$'},
     {id:'new-supplier', label:'Nuevo proveedor', icon:'＋'},
@@ -908,20 +1028,160 @@ function buildTopbar(){
   const userBox = document.getElementById('userBox');
   if (userBox){
     if (isAuthenticated()){
-      userBox.innerHTML = `<span class="topbar-user">${esc(AUTH_USER)}</span><button class="btn-secondary" id="logoutBtn">Salir</button>`;
+      userBox.innerHTML = `
+        <div class="user-dropdown">
+          <button class="user-menu-btn" id="userMenuToggle">
+            <span class="user-icon">👤</span>
+            <span class="user-name">${esc(AUTH_USER)}</span>
+            <span class="menu-caret">▼</span>
+          </button>
+          <div class="user-menu-content" id="userMenuContent">
+            <button class="menu-item" id="importBackupBtn">⬆ Importar respaldo</button>
+            <button class="menu-item" id="exportBackupBtn">⬇ Exportar respaldo</button>
+            <div class="menu-divider"></div>
+            <button class="menu-item logout-item" id="logoutBtn">🚪 Salir</button>
+          </div>
+        </div>
+      `;
+      const menuToggle = document.getElementById('userMenuToggle');
+      const menuContent = document.getElementById('userMenuContent');
       const logoutBtn = document.getElementById('logoutBtn');
+      const exportBtn = document.getElementById('exportBackupBtn');
+      const importBtn = document.getElementById('importBackupBtn');
+
+      // Toggle dropdown
+      if (menuToggle){
+        menuToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuContent.classList.toggle('open');
+        });
+      }
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', () => {
+        menuContent.classList.remove('open');
+      });
+
+      // Menu items
       if (logoutBtn){
         logoutBtn.addEventListener('click', () => {
+          menuContent.classList.remove('open');
           clearAuth();
           window.location.hash = 'login';
           render();
+        });
+      }
+      if (exportBtn){
+        exportBtn.addEventListener('click', () => {
+          menuContent.classList.remove('open');
+          Swal.fire({
+            title: 'Exportar respaldo',
+            html: `
+              <div style="display:grid;gap:10px;text-align:left;">
+                <label>Usuario</label>
+                <input id="exportUser" class="swal2-input" value="" placeholder="Usuario" />
+                <label>Contraseña</label>
+                <input id="exportPass" class="swal2-input" type="password" value="" placeholder="Contraseña" />
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Exportar',
+            cancelButtonText: 'Cancelar',
+            customClass: { popup: 'agromin-swal' },
+            preConfirm: () => {
+              const user = document.getElementById('exportUser').value.trim();
+              const pass = document.getElementById('exportPass').value.trim();
+              if (user !== 'deyton' || pass !== 'PAO123') {
+                Swal.showValidationMessage('Usuario o contraseña incorrectos.');
+                return false;
+              }
+              return { user, pass };
+            }
+          }).then((result) => {
+            if (!result.isConfirmed || !result.value) return;
+            const payload = {
+              exportedAt: new Date().toISOString(),
+              data: cloneData(DATA),
+              suppliers: cloneData(SUPPLIERS)
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `agromin-respaldo-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('success', 'Respaldo exportado', 'El archivo JSON se descargó correctamente.');
+          });
+        });
+      }
+      if (importBtn){
+        importBtn.addEventListener('click', () => {
+          menuContent.classList.remove('open');
+          Swal.fire({
+            title: 'Importar respaldo',
+            html: `
+              <div style="display:grid;gap:10px;text-align:left;">
+                <label>Usuario</label>
+                <input id="importUser" class="swal2-input" value="" placeholder="Usuario" />
+                <label>Contraseña</label>
+                <input id="importPass" class="swal2-input" type="password" value="" placeholder="Contraseña" />
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Importar',
+            cancelButtonText: 'Cancelar',
+            customClass: { popup: 'agromin-swal' },
+            preConfirm: () => {
+              const user = document.getElementById('importUser').value.trim();
+              const pass = document.getElementById('importPass').value.trim();
+              if (user !== 'deyton' || pass !== 'PAO123') {
+                Swal.showValidationMessage('Usuario o contraseña incorrectos.');
+                return false;
+              }
+              return { user, pass };
+            }
+          }).then((result) => {
+            if (!result.isConfirmed || !result.value) return;
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                try{
+                  const parsed = JSON.parse(reader.result);
+                  const incoming = parsed.data || parsed;
+                  if (!incoming || !Array.isArray(incoming.suppliers)) {
+                    throw new Error('El archivo no contiene un respaldo válido.');
+                  }
+                  const normalized = cleanupLoadedSuppliers(normalizeData(incoming));
+                  DATA = normalized;
+                  SUPPLIERS = DATA.suppliers;
+                  saveState();
+                  localStorage.setItem(STORAGE_BACKUP_KEY, JSON.stringify(DATA));
+                  buildNav();
+                  buildTopbar();
+                  render();
+                  showToast('success', 'Respaldo importado', 'El estado se cargó correctamente.');
+                } catch (err) {
+                  showToast('error', 'Error al importar', err.message || 'No se pudo cargar el respaldo.');
+                }
+              };
+              reader.readAsText(file);
+            };
+            input.click();
+          });
         });
       }
     } else {
       userBox.innerHTML = '';
     }
   }
-  // (Removed quick export/import actions per user request)
   document.getElementById('footer-date').textContent = (SUPPLIERS[0]?.meta.fechaReporte || '').slice(0,10) || '—';
   document.getElementById('footer-tc').textContent = fmtN(DATA.cambioDolar.tcComercial,2);
 }
@@ -966,9 +1226,14 @@ function render(){
     return;
   }
 
+  // Limpiar búsqueda cuando se navega a otras vistas
+  const searchInput = document.getElementById('globalSearch');
+  if (searchInput) searchInput.value = '';
+
   setActiveNav(route);
   destroyCharts();
   if (route === 'dashboard') content.innerHTML = viewDashboard();
+  else if (route === 'ventas') content.innerHTML = viewVentas();
   else if (route === 'stockbajo') content.innerHTML = viewStockBajo();
   else if (route === 'cambio') content.innerHTML = viewCambio();
   else if (route === 'new-supplier'){
@@ -1135,6 +1400,36 @@ function viewDashboard(){
     </div>
 
     <div class="panel">
+      <div class="panel-title">Top productos por ventas <span class="hint">registradas en el sistema</span></div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th>
+          </tr></thead>
+          <tbody>${(() => {
+            const salesProducts = [];
+            SUPPLIERS.forEach(s => s.products.forEach(p => {
+              const total = getSalesTotal(p);
+              if (total > 0) salesProducts.push({ p, s, total });
+            }));
+            salesProducts.sort((a,b) => b.total - a.total);
+            return salesProducts.slice(0, 6).map((entry, i) => `
+              <tr>
+                <td class="num">${i+1}</td>
+                <td class="prod-name">${esc(entry.p.producto)}</td>
+                <td><a href="#sup:${SUPPLIERS.indexOf(entry.s)}">${esc(entry.s.name)}</a></td>
+                <td class="num">${fmtInt(entry.total)}</td>
+                <td class="num">${fmtInt(getSalesRecent(entry.p, 7))}</td>
+                <td class="num">${fmtN(getSalesVelocity(entry.p), 1)} u/día</td>
+                <td class="num">${fmtN(entry.p.stock, 0)}</td>
+              </tr>
+            `).join('');
+          })()}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">Ranking de empresas por utilidad neta</div>
       <div class="table-scroll">
         <table class="data-table">
@@ -1144,6 +1439,68 @@ function viewDashboard(){
             <th class="num">Productos</th><th class="num">Stock bajo</th>
           </tr></thead>
           <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function viewVentas(){
+  const salesProducts = [];
+  SUPPLIERS.forEach((s, idx) => {
+    s.products.forEach(p => {
+      const total = getSalesTotal(p);
+      if (total > 0) salesProducts.push({ product: p, supplier: s, supplierIdx: idx, total, recent7: getSalesRecent(p, 7), velocity: getSalesVelocity(p) });
+    });
+  });
+  salesProducts.sort((a, b) => b.total - a.total || b.velocity - a.velocity);
+
+  const rows = salesProducts.map((entry, i) => `
+    <tr>
+      <td class="num">${i + 1}</td>
+      <td class="prod-name">${esc(entry.product.producto)}</td>
+      <td><a href="#sup:${entry.supplierIdx}">${esc(entry.supplier.name)}</a></td>
+      <td class="num">${fmtInt(entry.total)}</td>
+      <td class="num">${fmtInt(entry.recent7)}</td>
+      <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
+      <td class="num">${fmtN(entry.product.stock, 0)}</td>
+      <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Ventas · seguimiento</div>
+      <div class="view-title">Productos con más ventas</div>
+      <div class="view-desc">Aquí verás los productos que más unidades han salido del inventario y cuáles están moviéndose más rápido conforme registres ventas.</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Productos con ventas</div>
+        <div class="kpi-value">${fmtInt(salesProducts.length)}</div>
+        <div class="kpi-sub">de ${fmtInt(SUPPLIERS.reduce((a, s) => a + s.products.length, 0))} productos</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="kpi-label">Unidades vendidas acumuladas</div>
+        <div class="kpi-value">${fmtInt(salesProducts.reduce((a, entry) => a + entry.total, 0))}</div>
+        <div class="kpi-sub">sumando todos los productos</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Más activo</div>
+        <div class="kpi-value amber">${salesProducts[0] ? esc(salesProducts[0].product.producto) : '—'}</div>
+        <div class="kpi-sub">producto con mayor movimiento</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Ranking de ventas <span class="hint">ordenado por unidades vendidas</span></div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th><th>Última venta</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
@@ -1831,6 +2188,7 @@ function createSupplier({ name, schema = 'SOLES' } = {}){
   DATA.suppliers.push(supplier);
   SUPPLIERS = DATA.suppliers;
   saveState();
+  localStorage.setItem(STORAGE_BACKUP_KEY, JSON.stringify(DATA));
   return SUPPLIERS.length - 1;
 }
 
@@ -1998,6 +2356,7 @@ function openProductEditModal(s, supIdx, pi, onSaved){
 
     recalcSingleProduct(s, p);
     const sold = Math.max(oldStock - newStock, 0);
+    if (sold > 0) registerProductSale(s, p, sold, 'Edición de stock');
     p.prevStock = newStock;
     s.meta.fechaReporte = new Date().toISOString();
     recalcSupplierMeta(s);
@@ -2235,6 +2594,7 @@ function attachProductLotsBehavior(s, supIdx, pi){
       s.meta.fechaReporte = new Date().toISOString();
       recalcSupplierMeta(s);
       saveState();
+      localStorage.setItem(STORAGE_BACKUP_KEY, JSON.stringify(DATA));
       buildNav();
       buildTopbar();
       cantidadInput.value = '0';
@@ -2259,6 +2619,7 @@ function attachProductLotsBehavior(s, supIdx, pi){
     s.meta.fechaReporte = new Date().toISOString();
     recalcSupplierMeta(s);
     saveState();
+    localStorage.setItem(STORAGE_BACKUP_KEY, JSON.stringify(DATA));
     buildNav();
     buildTopbar();
     updateLotsTable();
@@ -2606,8 +2967,11 @@ function attachSupplierBehavior(idx){
 
 document.getElementById('globalSearch').addEventListener('input', (e) => {
   const q = e.target.value.trim().toLowerCase();
-  if (q.length < 2) return;
-  // Jump to dashboard-like results view inline (simple: find first match & navigate to its supplier)
+  // Si el input se limpia, volver al dashboard
+  if (q.length === 0){
+    window.location.hash = 'dashboard';
+    return;
+  }
 });
 document.getElementById('globalSearch').addEventListener('keydown', (e) => {
   if (e.key === 'Enter'){
@@ -2644,6 +3008,9 @@ function viewGlobalSearch(q){
       <div class="view-desc">${results.length} producto(s) encontrado(s) en ${SUPPLIERS.length} proveedores.</div>
     </div>
     <div class="panel">
+      <button id="clearSearchBtn" class="btn-secondary" style="margin-bottom: 14px; display:inline-flex; align-items:center; gap:6px;">
+        ✕ Limpiar búsqueda
+      </button>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr><th>Producto</th><th>Empresa</th><th>Contenido</th><th class="num">Stock</th><th>Estado</th><th class="num">Precio sistema</th></tr></thead>
@@ -2653,6 +3020,16 @@ function viewGlobalSearch(q){
     </div>
   `;
 }
+
+setTimeout(() => {
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (clearBtn){
+    clearBtn.addEventListener('click', () => {
+      document.getElementById('globalSearch').value = '';
+      window.location.hash = 'dashboard';
+    });
+  }
+}, 10);
 
 /* ---------------------------- MOBILE MENU ---------------------------- */
 document.getElementById('menuBtn').addEventListener('click', () => {
@@ -2669,3 +3046,4 @@ render();
 </script>
 </body>
 </html>
+
