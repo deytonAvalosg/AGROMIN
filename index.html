@@ -6201,16 +6201,40 @@ function viewVentas(){
 
     <div class="panel">
       <div class="panel-title">Ranking de ventas <span class="hint">ordenado por unidades vendidas</span></div>
-      <div class="table-toolbar" style="justify-content:flex-end; gap:10px;">
-        <button class="btn-primary" id="downloadVentasExcelBtn">Descargar Excel</button>
+      <div class="table-toolbar" style="justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label for="ventasSupplierFilter">Empresa</label>
+          <select id="ventasSupplierFilter">
+            <option value="all">Todas</option>
+            ${SUPPLIERS.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="btn-primary" id="downloadVentasExcelBtn">Descargar Excel</button>
+        </div>
       </div>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
             <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th><th>Última venta</th>
           </tr></thead>
-          <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
+          <tbody id="ventasTableBody">${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
         </table>
+      </div>
+      <div class="pagination-footer">
+        <div class="pagination-info">Mostrando página <strong id="ventasPageNumber">1</strong> de <strong id="ventasTotalPages">1</strong></div>
+        <div class="pagination-controls">
+          <button class="btn-secondary" id="ventasPrevBtn">← Anterior</button>
+          <button class="btn-secondary" id="ventasNextBtn">Siguiente →</button>
+          <div class="page-size-selector">
+            <label for="ventasPageSize">Mostrar</label>
+            <select id="ventasPageSize">
+              <option value="8">8 / pág</option>
+              <option value="15" selected>15 / pág</option>
+              <option value="30">30 / pág</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -6218,16 +6242,62 @@ function viewVentas(){
 
 function attachVentasBehavior(){
   const downloadBtn = document.getElementById('downloadVentasExcelBtn');
-  if (!downloadBtn) return;
-  downloadBtn.addEventListener('click', () => {
+  const supplierFilter = document.getElementById('ventasSupplierFilter');
+  const tableBody = document.getElementById('ventasTableBody');
+  const prevBtn = document.getElementById('ventasPrevBtn');
+  const nextBtn = document.getElementById('ventasNextBtn');
+  const pageNumber = document.getElementById('ventasPageNumber');
+  const totalPagesEl = document.getElementById('ventasTotalPages');
+  const pageSizeSelect = document.getElementById('ventasPageSize');
+  if (!downloadBtn || !tableBody || !supplierFilter || !prevBtn || !nextBtn || !pageNumber || !totalPagesEl || !pageSizeSelect) return;
+
+  let currentPage = 1;
+  let pageSize = parseInt(pageSizeSelect.value, 10) || 15;
+  let currentSupplier = 'all';
+
+  function buildSalesProducts(){
     const salesProducts = [];
     SUPPLIERS.forEach((s, idx) => {
       s.products.forEach(p => {
         const total = getSalesTotal(p);
-        if (total > 0) salesProducts.push({ product: p, supplier: s, supplierIdx: idx, total, recent7: getSalesRecent(p, 7), velocity: getSalesVelocity(p) });
+        if (total > 0 && (currentSupplier === 'all' || s.name === currentSupplier)){
+          salesProducts.push({ product: p, supplier: s, supplierIdx: idx, total, recent7: getSalesRecent(p, 7), velocity: getSalesVelocity(p) });
+        }
       });
     });
     salesProducts.sort((a, b) => b.total - a.total || b.velocity - a.velocity);
+    return salesProducts;
+  }
+
+  function renderSalesTable(){
+    const salesProducts = buildSalesProducts();
+    const totalItems = salesProducts.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const paged = salesProducts.slice(start, start + pageSize);
+
+    tableBody.innerHTML = paged.map((entry, i) => `
+      <tr>
+        <td class="num">${start + i + 1}</td>
+        <td class="prod-name">${esc(entry.product.producto)}</td>
+        <td><a href="#sup:${entry.supplierIdx}">${esc(entry.supplier.name)}</a></td>
+        <td class="num">${fmtInt(entry.total)}</td>
+        <td class="num">${fmtInt(entry.recent7)}</td>
+        <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
+        <td class="num">${fmtN(entry.product.stock, 0)}</td>
+        <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
+
+    pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
+    totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+  }
+
+  function exportVentas(){
+    const salesProducts = buildSalesProducts();
     if (!salesProducts.length) {
       showToast('info', 'Sin datos', 'No hay ventas registradas para exportar.');
       return;
@@ -6254,7 +6324,30 @@ function attachVentasBehavior(){
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast('success', 'Descarga iniciada', 'El archivo de ventas se descargó correctamente.');
+  }
+
+  downloadBtn.addEventListener('click', exportVentas);
+  supplierFilter.addEventListener('change', (e) => {
+    currentSupplier = e.target.value;
+    currentPage = 1;
+    renderSalesTable();
   });
+  pageSizeSelect.addEventListener('change', (e) => {
+    pageSize = parseInt(e.target.value, 10) || 15;
+    currentPage = 1;
+    renderSalesTable();
+  });
+  prevBtn.addEventListener('click', () => {
+    if (currentPage <= 1) return;
+    currentPage -= 1;
+    renderSalesTable();
+  });
+  nextBtn.addEventListener('click', () => {
+    currentPage += 1;
+    renderSalesTable();
+  });
+
+  renderSalesTable();
 }
 
 function attachDashboardCharts(){
