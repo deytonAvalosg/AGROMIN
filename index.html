@@ -2004,8 +2004,9 @@ function openProductEditModal(s, supIdx, pi, onSaved){
     saveState();
     closeModal();
 
-    if (typeof onSaved === 'function') onSaved();
     buildNav();
+    buildTopbar();
+    if (typeof onSaved === 'function') onSaved();
     const kIngreso = document.getElementById('kpiIngreso');
     const kDeducciones = document.getElementById('kpiDeducciones');
     const kUtilidad = document.getElementById('kpiUtilidad');
@@ -2234,6 +2235,8 @@ function attachProductLotsBehavior(s, supIdx, pi){
       s.meta.fechaReporte = new Date().toISOString();
       recalcSupplierMeta(s);
       saveState();
+      buildNav();
+      buildTopbar();
       cantidadInput.value = '0';
       precioInput.value = '0';
       notaInput.value = '';
@@ -2256,6 +2259,8 @@ function attachProductLotsBehavior(s, supIdx, pi){
     s.meta.fechaReporte = new Date().toISOString();
     recalcSupplierMeta(s);
     saveState();
+    buildNav();
+    buildTopbar();
     updateLotsTable();
     showToast('success', 'Lote eliminado', 'Se removió el lote y se actualizó el stock.');
   });
