@@ -289,6 +289,29 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
   font-family: var(--mono); font-size:12px; width:180px;
 }
 
+.pagination-footer{
+  display:flex; justify-content:space-between; flex-wrap:wrap; align-items:center;
+  margin-top: 14px; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line-soft);
+  background: rgba(255,255,255,0.04);
+  border-radius: 0 0 12px 12px;
+}
+.pagination-info{
+  font-family: var(--mono); color: var(--text-faint); font-size: 12px;
+}
+.pagination-controls{
+  display:flex; align-items:center; gap: 10px; flex-wrap:wrap;
+}
+.pagination-controls button{
+  min-width: 120px; padding: 8px 12px; font-size: 12px;
+}
+.page-size-selector{
+  display:flex; align-items:center; gap: 6px; font-family: var(--mono); font-size: 12px; color: var(--text-faint);
+}
+.page-size-selector select{
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+}
+
 .table-scroll{ overflow-x:auto; }
 
 .company-grid{
@@ -5162,6 +5185,51 @@ const AGROMIN_DATA = {
                                                "montoBrutoSoles":  133257.25
                                            }
                                        ]
+                      },
+                      {
+                          "name":  "VILLAFUERTE",
+                          "schema":  "USD",
+                          "meta":  {
+                                       "fechaReporte":  "2026-07-13T00:00:00",
+                                       "tcComercial":  3.5,
+                                       "tcSunat":  3.4,
+                                       "impuestoRenta":  0.02,
+                                       "ingresoBruto":  0,
+                                       "totalDeducciones":  0,
+                                       "utilidadNeta":  0
+                                   },
+                          "products":  [
+                                           {
+                                               "producto":  "ACIFIT X 1LT",
+                                               "contenido":  "1 litro",
+                                               "flete":  0.6,
+                                               "rentaProd":  0,
+                                               "stock":  48.0,
+                                               "estadoStock":  "OPTIMO",
+                                               "precioSistema":  25.0,
+                                               "diferencia":  -24.4,
+                                               "imptoRenta":  0,
+                                               "precioOrigUSD":  0.0,
+                                               "costoUnit":  0.6,
+                                               "montoBrutoUSD":  0,
+                                               "montoBrutoSoles":  0
+                                           },
+                                           {
+                                               "producto":  "ACIFIT X 4LT",
+                                               "contenido":  "1 litro",
+                                               "flete":  0.6,
+                                               "rentaProd":  0,
+                                               "stock":  0.0,
+                                               "estadoStock":  "STOCK BAJO",
+                                               "precioSistema":  80.0,
+                                               "diferencia":  79.4,
+                                               "imptoRenta":  0,
+                                               "precioOrigUSD":  0.0,
+                                               "costoUnit":  0.6,
+                                               "montoBrutoUSD":  0,
+                                               "montoBrutoSoles":  0
+                                           }
+                                       ]
                       }
                   ],
     "stockBajoResumen":  [
@@ -5582,6 +5650,7 @@ function buildNav(){
     {id:'ventas', label:'Ventas', icon:'↗'},
     {id:'stockbajo', label:'Alertas de stock', icon:'⚠', tag: stockBajoTotal},
     {id:'cambio', label:'Tipo de cambio', icon:'$'},
+    {id:'precios', label:'Esquemas de precios', icon:'⚙'},
     {id:'new-supplier', label:'Nuevo proveedor', icon:'＋'},
   ];
   let html = '<div class="nav-section"><div class="nav-label">General</div>';
@@ -5844,6 +5913,11 @@ function render(){
   else if (route === 'ventas') content.innerHTML = viewVentas();
   else if (route === 'stockbajo') content.innerHTML = viewStockBajo();
   else if (route === 'cambio') content.innerHTML = viewCambio();
+  else if (route === 'precios') {
+    content.innerHTML = viewPriceSchemas();
+    attachPriceSchemaBehavior();
+    return;
+  }
   else if (route === 'new-supplier'){
     content.innerHTML = viewNewSupplier();
     attachNewSupplierForm();
@@ -6103,6 +6177,9 @@ function viewVentas(){
 
     <div class="panel">
       <div class="panel-title">Ranking de ventas <span class="hint">ordenado por unidades vendidas</span></div>
+      <div class="table-toolbar" style="justify-content:flex-end; gap:10px;">
+        <button class="btn-primary" id="downloadVentasExcelBtn">Descargar Excel</button>
+      </div>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
@@ -6113,6 +6190,47 @@ function viewVentas(){
       </div>
     </div>
   `;
+}
+
+function attachVentasBehavior(){
+  const downloadBtn = document.getElementById('downloadVentasExcelBtn');
+  if (!downloadBtn) return;
+  downloadBtn.addEventListener('click', () => {
+    const salesProducts = [];
+    SUPPLIERS.forEach((s, idx) => {
+      s.products.forEach(p => {
+        const total = getSalesTotal(p);
+        if (total > 0) salesProducts.push({ product: p, supplier: s, supplierIdx: idx, total, recent7: getSalesRecent(p, 7), velocity: getSalesVelocity(p) });
+      });
+    });
+    salesProducts.sort((a, b) => b.total - a.total || b.velocity - a.velocity);
+    if (!salesProducts.length) {
+      showToast('info', 'Sin datos', 'No hay ventas registradas para exportar.');
+      return;
+    }
+    const headers = ['#', 'Producto', 'Proveedor', 'Vendidas', 'Últ. 7 días', 'Rotación (u/día)', 'Stock', 'Última venta'];
+    const rows = salesProducts.map((entry, i) => [
+      i + 1,
+      entry.product.producto || '—',
+      entry.supplier.name || '—',
+      fmtInt(entry.total),
+      fmtInt(entry.recent7),
+      fmtN(entry.velocity, 1),
+      fmtN(entry.product.stock, 0),
+      entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—'
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agromin-ranking-ventas-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('success', 'Descarga iniciada', 'El archivo de ventas se descargó correctamente.');
+  });
 }
 
 function attachDashboardCharts(){
@@ -6516,6 +6634,78 @@ function attachCambioCalc(){
   update();
 }
 
+function viewPriceSchemas(){
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Esquemas de precios</div>
+      <div class="view-title">Editar esquema de proveedor</div>
+      <div class="view-desc">Corrige el esquema de precios por proveedor si configuraste uno equivocado. El sistema recalcula los productos automáticamente.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Selecciona el proveedor y actualiza su esquema</div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>Proveedor</th><th>Esquema actual</th><th>Nuevo esquema</th><th>Acciones</th>
+          </tr></thead>
+          <tbody>
+            ${SUPPLIERS.map((s,i) => `
+              <tr data-supidx="${i}">
+                <td class="prod-name"><a href="#sup:${i}">${esc(s.name)}</a></td>
+                <td>${esc(s.schema)}</td>
+                <td>
+                  <select class="schema-select" data-supidx="${i}">
+                    <option value="SOLES"${s.schema==='SOLES'?' selected':''}>SOLES</option>
+                    <option value="USD"${s.schema==='USD'?' selected':''}>USD</option>
+                    <option value="TON"${s.schema==='TON'?' selected':''}>TON</option>
+                  </select>
+                </td>
+                <td><button class="btn-primary btn-change-schema" data-supidx="${i}">Aplicar</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="footnote">Cambios de esquema afectan el cálculo de costo, impuesto y utilidad de los productos.</div>
+    </div>
+  `;
+}
+
+function attachPriceSchemaBehavior(){
+  document.querySelectorAll('.btn-change-schema').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.supidx, 10);
+      if (Number.isNaN(idx) || !SUPPLIERS[idx]) return;
+      const select = document.querySelector(`select.schema-select[data-supidx="${idx}"]`);
+      if (!select) return;
+      const newSchema = select.value;
+      const supplier = SUPPLIERS[idx];
+      if (newSchema === supplier.schema){
+        showToast('info', 'Sin cambios', 'El esquema seleccionado ya está aplicado.');
+        return;
+      }
+      Swal.fire({
+        title: 'Cambiar esquema',
+        text: `¿Deseas cambiar el esquema de ${supplier.name} a ${newSchema}?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, aplicar',
+        cancelButtonText: 'Cancelar',
+        customClass: { popup: 'agromin-swal' }
+      }).then(result => {
+        if (!result.isConfirmed) return;
+        updateSupplierSchema(supplier, newSchema);
+        supplier.meta.fechaReporte = new Date().toISOString();
+        saveState();
+        buildNav();
+        buildTopbar();
+        render();
+        showToast('success', 'Esquema actualizado', `Se aplicó ${newSchema} a ${supplier.name}.`);
+      });
+    });
+  });
+}
+
 /* ---------------------------- VIEW: SUPPLIER ---------------------------- */
 
 function schemaColumns(schema){
@@ -6640,6 +6830,7 @@ function viewSupplier(s, idx){
       <div class="eyebrow">Proveedor · <span class="badge-schema">esquema ${s.schema}</span></div>
       <div class="view-title">${esc(s.name)}</div>
       <div class="view-desc">Reporte generado el ${ (s.meta.fechaReporte||'').slice(0,10) || '—' }. Tipo de cambio comercial ${fmtN(s.meta.tcComercial,2)} · SUNAT ${fmtN(s.meta.tcSunat,2)}.</div>
+      <button class="btn-secondary" id="editSupplierSchemaBtn">Editar esquema</button>
     </div>
 
     <div class="kpi-grid">
@@ -6696,6 +6887,21 @@ function viewSupplier(s, idx){
           <thead><tr>${cols.map((c,ci) => `<th data-col="${ci}" data-type="${c.type}">${esc(c.label)}</th>`).join('')}</tr></thead>
           <tbody id="supTableBody">${rows}</tbody>
         </table>
+      </div>
+      <div class="pagination-footer">
+        <div class="pagination-info">Mostrando página <strong id="supPageNumber">1</strong> de <strong id="supTotalPages">1</strong></div>
+        <div class="pagination-controls">
+          <button class="btn-secondary" id="supPrevPageBtn">← Anterior</button>
+          <button class="btn-secondary" id="supNextPageBtn">Siguiente →</button>
+          <div class="page-size-selector">
+            <label for="supPageSize">Mostrar</label>
+            <select id="supPageSize">
+              <option value="8">8 / pág</option>
+              <option value="15" selected>15 / pág</option>
+              <option value="30">30 / pág</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -6990,6 +7196,70 @@ function openProductEditModal(s, supIdx, pi, onSaved){
       customClass: { popup: 'agromin-swal' }
     });
   });
+}
+
+function openSupplierSchemaModal(s, idx, onSaved){
+  openModal(`
+    <div class="modal-eyebrow">Editar esquema · ${esc(s.name)}</div>
+    <div class="modal-title">Esquema actual: ${esc(s.schema)}</div>
+    <div class="modal-sub">Cambia la estructura de precios para este proveedor y recalcula sus productos.</div>
+    <div class="form-grid">
+      <div class="form-field full">
+        <label>Esquema de precios</label>
+        <select id="supplierSchemaSelect">
+          <option value="SOLES"${s.schema === 'SOLES' ? ' selected' : ''}>SOLES</option>
+          <option value="USD"${s.schema === 'USD' ? ' selected' : ''}>USD</option>
+          <option value="TON"${s.schema === 'TON' ? ' selected' : ''}>TON</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="schemaCancelBtn">Cancelar</button>
+      <button class="btn-primary" id="schemaSaveBtn">Guardar esquema</button>
+    </div>
+  `);
+
+  document.getElementById('schemaCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('schemaSaveBtn').addEventListener('click', () => {
+    const newSchema = document.getElementById('supplierSchemaSelect').value;
+    if (newSchema === s.schema){
+      Swal.fire({ title: 'Sin cambios', text: 'El esquema seleccionado ya está aplicado.', icon: 'info', customClass: { popup: 'agromin-swal' } });
+      return;
+    }
+    updateSupplierSchema(s, newSchema);
+    s.meta.fechaReporte = new Date().toISOString();
+    saveState();
+    buildNav();
+    buildTopbar();
+    closeModal();
+    if (typeof onSaved === 'function') onSaved();
+    showToast('success', 'Esquema actualizado', `Se cambió a ${newSchema} en ${s.name}.`);
+  });
+}
+
+function updateSupplierSchema(s, newSchema){
+  if (!s || !newSchema || s.schema === newSchema) return false;
+  const tc = s.meta.tcComercial || DATA.cambioDolar.tcComercial;
+  s.schema = newSchema;
+  s.products.forEach(p => {
+    if (newSchema === 'USD'){
+      if (!p.precioOrigUSD || p.precioOrigUSD === 0){
+        p.precioOrigUSD = tc > 0 ? ((p.costoUnit||0) - (p.flete||0) - (p.rentaProd||0)) / tc : 0;
+      }
+      p.bolsasTon = p.bolsasTon || 1;
+      p.impuestoBolsa = p.impuestoBolsa || 0;
+    } else if (newSchema === 'TON'){
+      p.bolsasTon = p.bolsasTon || 1;
+      if (!p.precioTonUSD || p.precioTonUSD === 0){
+        p.precioTonUSD = tc > 0 ? (((p.costoUnit||0) - (p.flete||0) - (p.impuestoBolsa||0)) / tc) * p.bolsasTon : 0;
+      }
+    } else {
+      p.precioCompra = p.precioCompra || p.costoUnit || 0;
+    }
+    recalcSingleProduct(s, p);
+  });
+  recalcSupplierMeta(s);
+  return true;
 }
 
 function openAddProductModal(s, supIdx, onSaved){
@@ -7466,6 +7736,15 @@ function attachSupplierBehavior(idx){
   const content = document.getElementById('content');
   const viewInactiveBtn = document.getElementById('viewInactiveBtn');
   const addProductBtn = document.getElementById('addProductBtn');
+  const editSchemaBtn = document.getElementById('editSupplierSchemaBtn');
+  const prevBtn = document.getElementById('supPrevPageBtn');
+  const nextBtn = document.getElementById('supNextPageBtn');
+  const pageNumber = document.getElementById('supPageNumber');
+  const totalPagesEl = document.getElementById('supTotalPages');
+  const pageSizeSelect = document.getElementById('supPageSize');
+
+  let currentPage = 1;
+  let pageSize = parseInt(pageSizeSelect?.value, 10) || 15;
 
   function applyAndRender(){
     let items = s.products.map((p,pi)=>({p,pi}));
@@ -7484,21 +7763,58 @@ function attachSupplierBehavior(idx){
         return (va-vb)*sortDir;
       });
     }
-    tbody.innerHTML = items.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('')
+
+    const totalItems = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const pagedItems = items.slice(start, start + pageSize);
+
+    tbody.innerHTML = pagedItems.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('')
       || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-faint);padding:20px;">Sin resultados</td></tr>`;
+
+    if (pageNumber) pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
+    if (totalPagesEl) totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
   }
 
   chips.forEach(chip => chip.addEventListener('click', () => {
     chips.forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
     currentFilter = chip.dataset.filter;
+    currentPage = 1;
     applyAndRender();
   }));
 
   searchInput.addEventListener('input', (e) => {
     currentSearch = e.target.value.toLowerCase();
+    currentPage = 1;
     applyAndRender();
   });
+
+  if (pageSizeSelect){
+    pageSizeSelect.addEventListener('change', (e) => {
+      pageSize = parseInt(e.target.value, 10) || 12;
+      currentPage = 1;
+      applyAndRender();
+    });
+  }
+
+  if (prevBtn){
+    prevBtn.addEventListener('click', () => {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      applyAndRender();
+    });
+  }
+
+  if (nextBtn){
+    nextBtn.addEventListener('click', () => {
+      currentPage += 1;
+      applyAndRender();
+    });
+  }
 
   headers.forEach((th, ci) => {
     if (cols[ci].type === 'actions') return; // no ordenar la columna de acciones
@@ -7509,6 +7825,14 @@ function attachSupplierBehavior(idx){
       applyAndRender();
     });
   });
+
+  if (editSchemaBtn){
+    editSchemaBtn.addEventListener('click', () => {
+      openSupplierSchemaModal(s, idx, () => {
+        buildNav(); buildTopbar(); render();
+      });
+    });
+  }
 
   if (viewInactiveBtn) {
     viewInactiveBtn.addEventListener('click', () => {
@@ -7654,6 +7978,7 @@ render();
 </script>
 </body>
 </html>
+
 
 
 
