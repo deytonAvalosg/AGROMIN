@@ -1,0 +1,2485 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGROMIN · Sistema de Control de Costos e Inventario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg: #f3f5ee;
+  --bg-alt: #eaede2;
+  --panel: #ffffff;
+  --panel-2: #eef1e7;
+  --line: #dde3d3;
+  --line-soft: #e7ecdf;
+  --text: #1c2a1f;
+  --text-dim: #56695a;
+  --text-faint: #8b9a8b;
+  --lime: #3c7a2e;
+  --lime-dim: #2c5a22;
+  --amber: #b8761e;
+  --rust: #ab3a2c;
+  --sky: #276e6e;
+  --mono: 'IBM Plex Mono', monospace;
+  --display: 'Space Grotesk', sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background: var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(60,122,46,0.05), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(39,110,110,0.045), transparent 45%);
+  color: var(--text);
+  font-family: var(--display);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+::selection{ background: var(--lime); color: #f6f8f1; }
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-track{ background: var(--bg-alt); }
+::-webkit-scrollbar-thumb{ background: var(--line); border-radius:6px; }
+::-webkit-scrollbar-thumb:hover{ background: var(--lime-dim); }
+
+a{ color: inherit; }
+
+#app{ display:flex; min-height:100vh; }
+
+/* ---------- SIDEBAR ---------- */
+#sidebar{
+  width: 272px;
+  flex: 0 0 272px;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line-soft);
+  display:flex;
+  flex-direction:column;
+  position: sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+}
+.brand{
+  padding: 22px 20px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.brand-mark{
+  display:flex; align-items:center; gap:10px;
+}
+.brand-dot{
+  width:10px; height:10px; border-radius:2px;
+  background: var(--lime);
+  box-shadow: 0 0 10px rgba(60,122,46,0.35);
+  transform: rotate(45deg);
+}
+.brand-title{
+  font-weight:700; font-size:19px; letter-spacing:0.5px;
+}
+.brand-sub{
+  font-family: var(--mono);
+  font-size:10.5px;
+  color: var(--text-faint);
+  margin-top:6px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.nav-section{ padding: 14px 12px 4px; }
+.nav-label{
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  padding: 8px 10px 6px;
+}
+.nav-item{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  cursor:pointer;
+  margin: 1px 0;
+  border-left: 2px solid transparent;
+  transition: background .12s ease, color .12s ease;
+}
+.nav-item:hover{ background: rgba(60,122,46,0.08); color: var(--text); }
+.nav-item.active{
+  background: rgba(60,122,46,0.1);
+  color: var(--lime);
+  border-left: 2px solid var(--lime);
+  font-weight:600;
+}
+.nav-item .tag{
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(171,58,44,0.12);
+  color: var(--rust);
+  min-width: 20px;
+  text-align:center;
+}
+.nav-item .tag.zero{ background: rgba(60,122,46,0.1); color: var(--lime-dim); }
+.sidebar-footer{
+  margin-top:auto;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  line-height:1.6;
+}
+
+/* ---------- MAIN ---------- */
+#main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+
+#topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap: 16px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--line-soft);
+  position: sticky; top:0; z-index: 20;
+  background: rgba(243,245,238,0.9);
+  backdrop-filter: blur(8px);
+}
+.ticker{
+  display:flex; gap: 18px; align-items:center;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.ticker b{ color: var(--lime); font-weight:600; }
+.ticker .sep{ width:1px; height:14px; background: var(--line); }
+#search-box{
+  flex: 0 0 260px;
+  display:flex; align-items:center; gap:8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+#search-box input{
+  background:none; border:none; outline:none; color: var(--text);
+  font-family: var(--mono); font-size: 12.5px; width:100%;
+}
+#search-box input::placeholder{ color: var(--text-faint); }
+
+#content{ padding: 26px 30px 60px; max-width: 1280px; width:100%; margin:0 auto; }
+
+/* ---------- COMMON PIECES ---------- */
+.view-header{ margin-bottom: 22px; }
+.eyebrow{
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1.6px;
+  text-transform: uppercase; color: var(--lime-dim); margin-bottom:6px;
+}
+.view-title{ font-size: 26px; font-weight:700; letter-spacing:0.2px; }
+.view-desc{ color: var(--text-dim); font-size: 13.5px; margin-top:6px; max-width: 680px; line-height:1.5; }
+
+.kpi-grid{
+  display:grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr));
+  gap: 12px; margin-bottom: 24px;
+}
+.kpi-card{
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 16px 18px;
+  position:relative;
+  overflow:hidden;
+  box-shadow: 0 1px 2px rgba(28,42,31,0.04);
+}
+.kpi-card::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background: var(--lime-dim);
+}
+.kpi-card.warn::before{ background: var(--amber); }
+.kpi-card.danger::before{ background: var(--rust); }
+.kpi-card.info::before{ background: var(--sky); }
+.kpi-label{
+  font-family: var(--mono); font-size: 10.5px; letter-spacing:0.8px;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.kpi-value{
+  font-family: var(--mono); font-size: 22px; font-weight:600; margin-top: 8px;
+  color: var(--text);
+}
+.kpi-value.lime{ color: var(--lime); }
+.kpi-value.amber{ color: var(--amber); }
+.kpi-value.rust{ color: var(--rust); }
+.kpi-sub{ font-size: 11px; color: var(--text-faint); margin-top:4px; }
+
+.panel{
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 22px;
+  box-shadow: 0 1px 2px rgba(28,42,31,0.04);
+}
+.panel-title{
+  font-size: 14.5px; font-weight:600; margin-bottom: 14px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.panel-title .hint{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); font-weight:400; }
+
+.chart-row{ display:grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+@media (max-width: 980px){ .chart-row{ grid-template-columns: 1fr; } }
+.chart-wrap{ position:relative; height: 300px; }
+.chart-wrap.small{ height: 240px; }
+
+table.data-table{ width:100%; border-collapse: collapse; font-size: 12.8px; }
+table.data-table thead th{
+  text-align:left; padding: 9px 10px; font-family: var(--mono);
+  font-size: 10.5px; text-transform:uppercase; letter-spacing:0.5px;
+  color: var(--text-faint); border-bottom: 1px solid var(--line);
+  cursor:pointer; user-select:none; white-space:nowrap;
+}
+table.data-table thead th:hover{ color: var(--lime); }
+table.data-table thead th.sorted-asc::after{ content:' ▲'; color: var(--lime); }
+table.data-table thead th.sorted-desc::after{ content:' ▼'; color: var(--lime); }
+table.data-table tbody td{
+  padding: 9px 10px; border-bottom: 1px solid var(--line-soft);
+  font-family: var(--mono); white-space:nowrap;
+}
+table.data-table tbody td.prod-name{
+  white-space: normal; font-family: var(--display); font-size:13px; color: var(--text);
+  min-width: 200px;
+}
+table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
+.num{ text-align:right; }
+.num.neg{ color: var(--rust); }
+.num.pos{ color: var(--lime); }
+.money-cell{ color: var(--text); }
+.flete-cell{ color: #b48ead; font-weight:600; }
+.renta-cell{ color: #d6ac00; font-weight:600; }
+
+.pill{
+  display:inline-block; padding: 3px 9px; border-radius:999px;
+  font-family: var(--mono); font-size: 10.5px; font-weight:600;
+  letter-spacing:0.3px;
+}
+.pill.optimo{ background: rgba(60,122,46,0.13); color: var(--lime); }
+.pill.bajo{ background: rgba(184,118,30,0.15); color: var(--amber); }
+.pill.other{ background: rgba(39,110,110,0.14); color: var(--sky); }
+
+.table-toolbar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.filter-chips{ display:flex; gap:8px; flex-wrap:wrap; }
+.chip{
+  font-family: var(--mono); font-size: 11px; padding: 5px 11px;
+  border-radius: 999px; border:1px solid var(--line); color: var(--text-dim);
+  cursor:pointer;
+}
+.chip:hover{ border-color: var(--lime-dim); color: var(--text); }
+.chip.active{ background: var(--lime); color: #f6f8f1; border-color: var(--lime); font-weight:600; }
+.mini-search{
+  display:flex; align-items:center; gap:6px;
+  background: var(--panel-2); border:1px solid var(--line);
+  border-radius: 8px; padding: 6px 10px;
+}
+.mini-search input{
+  background:none;border:none;outline:none;color:var(--text);
+  font-family: var(--mono); font-size:12px; width:180px;
+}
+
+.table-scroll{ overflow-x:auto; }
+
+.company-grid{
+  display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+  gap: 12px;
+}
+.company-card{
+  background: var(--panel); border:1px solid var(--line-soft); border-radius:10px;
+  padding: 16px; cursor:pointer; transition: border-color .15s, transform .1s, box-shadow .15s;
+  box-shadow: 0 1px 2px rgba(28,42,31,0.04);
+}
+.company-card:hover{ border-color: var(--lime-dim); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(28,42,31,0.08); }
+.company-card .cname{ font-weight:600; font-size:14px; margin-bottom:10px; }
+.company-card .crow{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-top:5px;}
+.company-card .crow b{ color: var(--text); }
+
+.calc-box{
+  display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
+}
+.calc-field label{
+  display:block; font-family: var(--mono); font-size:10.5px; color:var(--text-faint);
+  text-transform:uppercase; margin-bottom:6px; letter-spacing:0.5px;
+}
+.calc-field input{
+  background: var(--panel-2); border:1px solid var(--line); border-radius:8px;
+  padding: 9px 12px; color: var(--text); font-family: var(--mono); font-size: 14px; width:160px;
+}
+.calc-result{ font-family:var(--mono); font-size:14px; color: var(--lime); padding: 9px 0; }
+
+.footnote{ color: var(--text-faint); font-size:11.5px; margin-top: 8px; font-family: var(--mono); }
+
+/* ---------- GASTOS Y DEDUCCIONES (tabla independiente y editable) ---------- */
+.panel.gastos-panel{ border-top: 3px solid var(--amber); }
+.gastos-input{
+  width:100%; background: transparent; border:none; outline:none;
+  font-family: var(--mono); font-size: 12.8px; color: var(--text);
+  padding: 4px 2px; border-radius: 4px;
+}
+.gastos-input:focus{ background: var(--panel-2); }
+.gastos-input.monto{ text-align:right; }
+.gastos-input::placeholder{ color: var(--text-faint); }
+#gastosTable tfoot td{
+  padding: 10px; font-family: var(--mono); font-weight:700; border-top: 2px solid var(--line);
+  color: var(--text);
+}
+.gasto-del{
+  background:none; border:1px solid var(--line); color: var(--rust);
+  border-radius:6px; width:26px; height:26px; cursor:pointer; font-size:14px;
+  line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.gasto-del:hover{ background: rgba(171,58,44,0.1); border-color: var(--rust); }
+.btn-add-gasto{
+  margin-top: 12px;
+  font-family: var(--mono); font-size: 12px; letter-spacing:0.3px;
+  background: var(--panel-2); border: 1px dashed var(--lime-dim); color: var(--lime-dim);
+  border-radius: 8px; padding: 9px 16px; cursor:pointer; font-weight:600;
+}
+.btn-add-gasto:hover{ background: rgba(60,122,46,0.1); }
+
+/* ---------- ACCIONES (iconos ver / editar / eliminar) ---------- */
+.actions-cell{ white-space:nowrap; }
+.icon-btn{
+  width: 30px; height:30px; border-radius:7px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text-dim); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  margin-right: 6px; transition: all .12s ease;
+}
+.icon-btn:last-child{ margin-right:0; }
+.icon-btn.detail-btn:hover{ border-color: var(--sky); color: var(--sky); background: rgba(39,110,110,0.08); }
+.icon-btn.edit-btn:hover{ border-color: var(--lime-dim); color: var(--lime-dim); background: rgba(60,122,46,0.08); }
+.icon-btn.delete-btn:hover{ border-color: var(--rust); color: var(--rust); background: rgba(171,58,44,0.1); }
+.icon-btn.restore-btn:hover{ border-color: var(--amber); color: var(--amber); background: rgba(184,118,30,0.12); }
+.btn-ghost{
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text-dim);
+  border-radius: 8px; padding: 8px 12px; font-family: var(--mono); font-size: 11px;
+  cursor:pointer; font-weight:600;
+}
+.btn-ghost:hover{ color: var(--text); border-color: var(--lime-dim); }
+.inactive-panel{ border-top: 3px solid var(--amber); }
+.inactive-wrap{ margin-top: 10px; }
+.empty-state{ padding: 16px; text-align:center; color: var(--text-faint); font-family: var(--mono); font-size:12px; }
+.agromin-swal{ border-radius: 12px !important; }
+.agromin-swal .swal2-title{ font-size: 16px !important; }
+.agromin-swal .swal2-html-container{ font-size: 13px !important; }
+
+/* ---------- MODAL ---------- */
+.modal-overlay{
+  position: fixed; inset:0; background: rgba(28,42,31,0.35);
+  display:none; align-items:center; justify-content:center;
+  z-index: 200; padding: 20px; backdrop-filter: blur(2px);
+}
+.modal-overlay.open{ display:flex; }
+.modal-card{
+  background: var(--panel); border-radius: 14px; border: 1px solid var(--line-soft);
+  max-width: 560px; width:100%; max-height: 86vh; overflow-y:auto;
+  padding: 26px 26px 24px; position:relative;
+  box-shadow: 0 20px 50px rgba(28,42,31,0.18);
+}
+.modal-close{
+  position:absolute; top:16px; right:16px; width:30px; height:30px;
+  border-radius:8px; border:1px solid var(--line); background: var(--panel-2);
+  color: var(--text-dim); cursor:pointer; font-size:18px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+}
+.modal-close:hover{ color: var(--rust); border-color: var(--rust); }
+.modal-eyebrow{
+  font-family: var(--mono); font-size:10.5px; letter-spacing:1.4px; text-transform:uppercase;
+  color: var(--lime-dim); margin-bottom:6px;
+}
+.modal-title{ font-size:19px; font-weight:700; margin-bottom: 4px; padding-right: 30px; }
+.modal-sub{ font-size:12.5px; color: var(--text-dim); margin-bottom: 18px; }
+.detail-grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.detail-item{
+  background: var(--panel-2); border:1px solid var(--line-soft); border-radius:10px;
+  padding: 12px 14px;
+}
+.detail-item .dlabel{
+  font-family: var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.6px;
+  color: var(--text-faint); margin-bottom:5px;
+}
+.detail-item .dvalue{ font-family: var(--mono); font-size:16px; font-weight:600; color: var(--text); }
+.detail-item .dvalue.pos{ color: var(--lime); }
+.detail-item .dvalue.neg{ color: var(--rust); }
+.form-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom: 18px; }
+.form-field{ display:flex; flex-direction:column; gap:6px; }
+.form-field.full{ grid-column: 1 / -1; }
+.form-field label{
+  font-family: var(--mono); font-size:10.5px; text-transform:uppercase;
+  letter-spacing:0.5px; color: var(--text-faint);
+}
+.form-field input{
+  background: var(--panel-2); border:1px solid var(--line); border-radius:8px;
+  padding: 9px 12px; color: var(--text); font-family: var(--mono); font-size:13.5px;
+}
+.form-field input:focus{ outline:none; border-color: var(--lime-dim); }
+.modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top: 6px; }
+.btn-primary{
+  background: var(--lime); color:#f6f8f1; border:none; border-radius:8px;
+  padding: 10px 20px; font-family: var(--display); font-weight:600; font-size:13.5px; cursor:pointer;
+}
+.btn-primary:hover{ background: var(--lime-dim); }
+.btn-secondary{
+  background: var(--panel-2); color: var(--text-dim); border:1px solid var(--line); border-radius:8px;
+  padding: 10px 18px; font-family: var(--display); font-weight:600; font-size:13.5px; cursor:pointer;
+}
+.btn-secondary:hover{ color: var(--text); }
+.preview-note{
+  font-family: var(--mono); font-size:11px; color: var(--text-faint); margin: -6px 0 14px;
+}
+
+.badge-schema{
+  font-family: var(--mono); font-size:10px; padding:2px 8px; border-radius:6px;
+  border:1px solid var(--line); color: var(--text-faint); text-transform:uppercase;
+}
+
+@media (max-width: 980px){
+  #app{ flex-direction: column; }
+  #sidebar{ position: fixed; left:-100%; top:0; width:280px; height:100vh; z-index:50; transition:left .2s; box-shadow: 20px 0 40px rgba(0,0,0,0.12); }
+  #sidebar.open{ left:0; }
+  #main{ margin-left: 0; }
+  #content{ padding: 18px 14px 80px; }
+  #topbar{ padding: 12px 14px; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+  #search-box{ flex:1; min-width:0; width:100%; }
+  .ticker{ display:none; }
+  .menu-btn{ display:flex !important; }
+  .nav-item{ width:100%; }
+  .nav-section{ padding-left:0; padding-right:0; }
+  .form-grid, .detail-grid{ grid-template-columns: 1fr; }
+  .panel{ padding: 16px; }
+  .table-toolbar{ flex-direction:column; align-items:flex-start; }
+  .mini-search input{ width:100%; }
+  table.data-table thead th, table.data-table tbody td{ padding: 8px 8px; font-size: 12px; }
+  .chart-wrap{ height: 240px; }
+  .kpi-card{ min-height: auto; }
+}
+@media (max-width: 760px){
+  #sidebar{ width:100%; }
+  .chart-wrap{ height: 220px; }
+}
+.menu-btn{
+  display:none; align-items:center; justify-content:center;
+  width:34px; height:34px; border-radius:8px; border:1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor:pointer; flex:0 0 auto;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <div class="brand-dot"></div>
+        <div class="brand-title">AGROMIN</div>
+      </div>
+      <div class="brand-sub">Control de costos &amp; inventario</div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-footer">
+      Reporte: <span id="footer-date">—</span><br>
+      TC comercial: <span id="footer-tc">—</span>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div id="topbar">
+      <button class="menu-btn" id="menuBtn">☰</button>
+      <div class="ticker" id="ticker"></div>
+      <div id="search-box">
+        <span>⌕</span>
+        <input id="globalSearch" placeholder="Buscar producto en todos los proveedores…" />
+      </div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+  <div class="modal-card" id="modalCard" role="dialog" aria-modal="true">
+    <button class="modal-close" id="modalCloseBtn" aria-label="Cerrar">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const AGROMIN_DATA = {"generadoEn": "2026-07-10", "suppliers": [{"name": "ABC MAX S.A.C.", "schema": "SOLES", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 119694.42, "totalDeducciones": 2393.8884, "utilidadNeta": 119693.24}, "products": [{"producto": "ALIETTE 80WG X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 2.746, "stock": 164.0, "estadoStock": "OPTIMO", "precioSistema": 140.0, "diferencia": -0.646, "imptoRenta": 461.31888, "precioCompra": 137.3, "costoUnit": 140.646, "montoBrutoSoles": 23065.944}, {"producto": "BAYFOLAN (11-8-6) X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.58, "stock": 108.0, "estadoStock": "OPTIMO", "precioSistema": 37.0, "diferencia": 6.82, "imptoRenta": 65.1888, "precioCompra": 29.0, "costoUnit": 30.18, "montoBrutoSoles": 3259.44}, {"producto": "BAYFOLAN AKTIVATOR X 20LT", "contenido": "20 LT", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": -0.6, "imptoRenta": 0.012, "precioCompra": 0.0, "costoUnit": 0.6, "montoBrutoSoles": 0.6}, {"producto": "FITORAZ 76%PM X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 1.46, "stock": 167.0, "estadoStock": "OPTIMO", "precioSistema": 78.0, "diferencia": 2.94, "imptoRenta": 250.7004, "precioCompra": 73.0, "costoUnit": 75.06, "montoBrutoSoles": 12535.02}, {"producto": "LARVIN PLUS X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": -0.6, "imptoRenta": 0.048, "precioCompra": 0.0, "costoUnit": 0.6, "montoBrutoSoles": 2.4}, {"producto": "LUNA EXPERIENCE X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": -0.6, "imptoRenta": 0.012, "precioCompra": 0.0, "costoUnit": 0.6, "montoBrutoSoles": 0.6}, {"producto": "LUNA TRANQUILITY X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0, "stock": 2.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": -0.6, "imptoRenta": 0.024, "precioCompra": 0.0, "costoUnit": 0.6, "montoBrutoSoles": 1.2}, {"producto": "LUNA TRANQUILITY X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 3.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": -0.6, "imptoRenta": 0.036, "precioCompra": 0.0, "costoUnit": 0.6, "montoBrutoSoles": 1.8}, {"producto": "NATIVO 75WG X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 1.296, "stock": 56.0, "estadoStock": "OPTIMO", "precioSistema": 75.0, "diferencia": 8.304, "imptoRenta": 74.69952, "precioCompra": 64.8, "costoUnit": 66.696, "montoBrutoSoles": 3734.976}, {"producto": "PROSPER X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 6.24, "stock": 69.0, "estadoStock": "OPTIMO", "precioSistema": 318.0, "diferencia": -0.84, "imptoRenta": 439.9992, "precioCompra": 312.0, "costoUnit": 318.84, "montoBrutoSoles": 21999.96}, {"producto": "SENCOR 480SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 3.38, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 175.0, "diferencia": 2.02, "imptoRenta": 0, "precioCompra": 169.0, "costoUnit": 172.98, "montoBrutoSoles": 0}, {"producto": "SULFODIN 80WG X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.39, "stock": 42.0, "estadoStock": "OPTIMO", "precioSistema": 26.0, "diferencia": 5.51, "imptoRenta": 17.2116, "precioCompra": 19.5, "costoUnit": 20.49, "montoBrutoSoles": 860.58}, {"producto": "VAYEGO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 12.9, "stock": 79.0, "estadoStock": "OPTIMO", "precioSistema": 680.0, "diferencia": 21.5, "imptoRenta": 1040.43, "precioCompra": 645.0, "costoUnit": 658.5, "montoBrutoSoles": 52021.5}, {"producto": "VAYEGO X 250ML", "contenido": "250ml", "flete": 0.6, "rentaProd": 3.6, "stock": 12.0, "estadoStock": "STOCK BAJO", "precioSistema": 680.0, "diferencia": 495.8, "imptoRenta": 44.208, "precioCompra": 180.0, "costoUnit": 184.2, "montoBrutoSoles": 2210.4}, {"producto": "VERANGO PRIME SC500 X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 15.382, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 808.0, "diferencia": 22.918, "imptoRenta": 0, "precioCompra": 769.1, "costoUnit": 785.082, "montoBrutoSoles": 0}]}, {"name": "ADAMA AGRICULTURE S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 115602.151, "totalDeducciones": 2312.04302, "utilidadNeta": 113290.108}, "products": [{"producto": "PARACHUPADERA  BAGS X 200GR", "contenido": "200 GR", "flete": 0.6, "rentaProd": 0.4354, "stock": 78.0, "estadoStock": "OPTIMO", "precioSistema": 27.0, "diferencia": -4.1946, "imptoRenta": 33.9612, "precioOrigUSD": 6.22, "costoUnit": 22.8054, "montoBrutoUSD": 485.16, "montoBrutoSoles": 1698.06}, {"producto": "IMIDAMIN 350 SC BOTTLE X 250CC", "contenido": "250 ML", "flete": 0.6, "rentaProd": 0.2233, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 16.0, "diferencia": 4.0117, "imptoRenta": 0.2233, "precioOrigUSD": 3.19, "costoUnit": 11.9883, "montoBrutoUSD": 3.19, "montoBrutoSoles": 11.165}, {"producto": "KARMEX 80WG X 62GR", "contenido": "62 GR", "flete": 0.6, "rentaProd": 0.0826, "stock": 228, "estadoStock": "OPTIMO", "precioSistema": 6.0, "diferencia": 1.1874, "imptoRenta": 18.8328, "precioOrigUSD": 1.18, "costoUnit": 4.8126, "montoBrutoUSD": 269.04, "montoBrutoSoles": 941.64}, {"producto": "AFALON 500SC X 1LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 70.0, "diferencia": 70, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ZARIVA SC SAS PROFEPERU COEX 1 LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0, "stock": 2, "estadoStock": "STOCK BAJO", "precioSistema": 480.0, "diferencia": 480, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CAYON X 1LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0, "stock": 2, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ALFAKLING X LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0.4956, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 35.0, "diferencia": -9.1244, "imptoRenta": 0.4956, "precioOrigUSD": 7.08, "costoUnit": 25.8756, "montoBrutoUSD": 7.08, "montoBrutoSoles": 24.78}, {"producto": "POUNTRIL", "contenido": "PASTILLAS", "flete": 0.6, "rentaProd": 0, "stock": 38.0, "estadoStock": "OPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "AFALON 500SC X 250CC", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0.3304, "stock": 79.0, "estadoStock": "OPTIMO", "precioSistema": 20.0, "diferencia": 2.5496, "imptoRenta": 26.1016, "precioOrigUSD": 4.72, "costoUnit": 17.4504, "montoBrutoUSD": 372.88, "montoBrutoSoles": 1305.08}, {"producto": "EZ TABLE X 1LT", "contenido": "1 LT ", "flete": 0.6, "rentaProd": 0, "stock": 80, "estadoStock": "OPTIMO", "precioSistema": 1.0, "diferencia": 1, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "LAMDEX PROFPERU COEX X 1 LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 1.239, "stock": 11, "estadoStock": "STOCK BAJO", "precioSistema": 80.0, "diferencia": 16.211, "imptoRenta": 13.629, "precioOrigUSD": 17.7, "costoUnit": 63.789, "montoBrutoUSD": 194.7, "montoBrutoSoles": 681.45}, {"producto": "ONCOL X LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 1.9824, "stock": 870.0, "estadoStock": "OPTIMO", "precioSistema": 110.0, "diferencia": 8.2976, "imptoRenta": 1724.688, "precioOrigUSD": 28.32, "costoUnit": 101.7024, "montoBrutoUSD": 24638.4, "montoBrutoSoles": 86234.4}, {"producto": "FUNDAMENTAL 73WP X 1KG", "contenido": "1 KG ", "flete": 0.6, "rentaProd": 0.826, "stock": 12, "estadoStock": "STOCK BAJO", "precioSistema": 40.0, "diferencia": -2.726, "imptoRenta": 9.912, "precioOrigUSD": 11.8, "costoUnit": 42.726, "montoBrutoUSD": 141.6, "montoBrutoSoles": 495.6}, {"producto": "PACKHARD X LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0.595, "stock": 679.0, "estadoStock": "OPTIMO", "precioSistema": 34.0, "diferencia": 3.055, "imptoRenta": 404.005, "precioOrigUSD": 8.5, "costoUnit": 30.945, "montoBrutoUSD": 5771.5, "montoBrutoSoles": 20200.25}, {"producto": "HOOK X 200 GR", "contenido": "200 GR", "flete": 0.6, "rentaProd": 0.18998, "stock": 404.0, "estadoStock": "OPTIMO", "precioSistema": 16.0, "diferencia": 5.71102, "imptoRenta": 76.75192, "precioOrigUSD": 2.714, "costoUnit": 10.28898, "montoBrutoUSD": 1096.456, "montoBrutoSoles": 3837.596}, {"producto": "ARPON X LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0.3038, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 45.0, "diferencia": 28.9062, "imptoRenta": 0.3038, "precioOrigUSD": 4.34, "costoUnit": 16.0938, "montoBrutoUSD": 4.34, "montoBrutoSoles": 15.19}, {"producto": "HACHE UNO SUPER X 1LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 3.1388, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 180.0, "diferencia": 19.3212, "imptoRenta": 3.1388, "precioOrigUSD": 44.84, "costoUnit": 160.6788, "montoBrutoUSD": 44.84, "montoBrutoSoles": 156.94}]}, {"name": "COMERCIAL ANDINA INDUSTRIAL S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 41243.657, "totalDeducciones": 824.87314, "utilidadNeta": 40418.78386}, "products": [{"producto": "AMINAX X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 8.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CADETE X LT", "contenido": "100 g", "flete": 0.6, "rentaProd": 1.0724, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 65.0, "diferencia": 9.7076, "imptoRenta": 0, "precioOrigUSD": 15.32, "costoUnit": 55.2924, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CITOGIB  X 125ML", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.239, "stock": 8.0, "estadoStock": "STOCK BAJO", "precioSistema": 68.0, "diferencia": 4.211, "imptoRenta": 9.912, "precioOrigUSD": 17.7, "costoUnit": 63.789, "montoBrutoUSD": 141.6, "montoBrutoSoles": 495.6}, {"producto": "CITOGIB X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 9.31, "stock": 2, "estadoStock": "STOCK BAJO", "precioSistema": 515.0, "diferencia": -39.59, "imptoRenta": 18.62, "precioOrigUSD": 133.0, "costoUnit": 475.41, "montoBrutoUSD": 266, "montoBrutoSoles": 931}, {"producto": "CYTHOR X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 2.478, "stock": 31.0, "estadoStock": "OPTIMO", "precioSistema": 131.0, "diferencia": 4.022, "imptoRenta": 76.818, "precioOrigUSD": 35.4, "costoUnit": 126.978, "montoBrutoUSD": 1097.4, "montoBrutoSoles": 3840.9}, {"producto": "FROTHER X 1LT", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.2996, "stock": 5, "estadoStock": "STOCK BAJO", "precioSistema": 22.0, "diferencia": 6.1204, "imptoRenta": 1.498, "precioOrigUSD": 4.28, "costoUnit": 15.8796, "montoBrutoUSD": 21.4, "montoBrutoSoles": 74.9}, {"producto": "GIB-BEX X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.54, "stock": 128.0, "estadoStock": "OPTIMO", "precioSistema": 84.0, "diferencia": 4.86, "imptoRenta": 197.12, "precioOrigUSD": 22.0, "costoUnit": 79.14, "montoBrutoUSD": 2816, "montoBrutoSoles": 9856}, {"producto": "GIB-BEX X 250ML", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.4088, "stock": 34.0, "estadoStock": "OPTIMO", "precioSistema": 28.0, "diferencia": 6.5512, "imptoRenta": 13.8992, "precioOrigUSD": 5.84, "costoUnit": 21.4488, "montoBrutoUSD": 198.56, "montoBrutoSoles": 694.96}, {"producto": "MAGNESOIL GRAN. Verde X 50KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 1.575, "stock": 9.0, "estadoStock": "STOCK BAJO", "precioSistema": 92.0, "diferencia": 11.075, "imptoRenta": 14.175, "precioOrigUSD": 22.5, "costoUnit": 80.925, "montoBrutoUSD": 202.5, "montoBrutoSoles": 708.75}, {"producto": "NEMAKILL 15G X 5KG", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.8746, "stock": 158.0, "estadoStock": "OPTIMO", "precioSistema": 105.0, "diferencia": 8.7954, "imptoRenta": 296.1868, "precioOrigUSD": 26.78, "costoUnit": 96.2046, "montoBrutoUSD": 4231.24, "montoBrutoSoles": 14809.34}, {"producto": "NEMATHOR X 1LT", "contenido": "100 g", "flete": 0.6, "rentaProd": 1.3629, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 78.0, "diferencia": 7.8921, "imptoRenta": 0, "precioOrigUSD": 19.47, "costoUnit": 70.1079, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ROOT-HOR (FCO. 1 LT)", "contenido": "1 kg", "flete": 0.6, "rentaProd": 1.6107, "stock": 66.0, "estadoStock": "OPTIMO", "precioSistema": 88.0, "diferencia": 5.2543, "imptoRenta": 106.3062, "precioOrigUSD": 23.01, "costoUnit": 82.7457, "montoBrutoUSD": 1518.66, "montoBrutoSoles": 5315.31}, {"producto": "ROOT-HOR X 250ML", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.4242, "stock": 30.0, "estadoStock": "OPTIMO", "precioSistema": 28.0, "diferencia": 5.7658, "imptoRenta": 12.726, "precioOrigUSD": 6.06, "costoUnit": 22.2342, "montoBrutoUSD": 181.8, "montoBrutoSoles": 636.3}, {"producto": "SANIX CU (BALDE X 20KG)", "contenido": "1 litro ", "flete": 0.6, "rentaProd": 9.912, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 560.0, "diferencia": 53.888, "imptoRenta": 0, "precioOrigUSD": 141.6, "costoUnit": 506.112, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SANIX X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.48188, "stock": 8.0, "estadoStock": "STOCK BAJO", "precioSistema": 30.0, "diferencia": 4.82412, "imptoRenta": 3.85504, "precioOrigUSD": 6.884, "costoUnit": 25.17588, "montoBrutoUSD": 55.072, "montoBrutoSoles": 192.752}, {"producto": "SANIX X 4KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 1.8501, "stock": 7.0, "estadoStock": "STOCK BAJO", "precioSistema": 110.0, "diferencia": 15.0449, "imptoRenta": 12.9507, "precioOrigUSD": 26.43, "costoUnit": 94.9551, "montoBrutoUSD": 185.01, "montoBrutoSoles": 647.535}, {"producto": "TRASLOCADOR X 1LT", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.42, "stock": 144.0, "estadoStock": "OPTIMO", "precioSistema": 28.0, "diferencia": 5.98, "imptoRenta": 60.48, "precioOrigUSD": 6.0, "costoUnit": 22.02, "montoBrutoUSD": 864, "montoBrutoSoles": 3024}, {"producto": "TRUENO (FCO X 1 LT)", "contenido": "1 litro ", "flete": 0.6, "rentaProd": 0.3262, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 20.0, "diferencia": 2.7638, "imptoRenta": 0.3262, "precioOrigUSD": 4.66, "costoUnit": 17.2362, "montoBrutoUSD": 4.66, "montoBrutoSoles": 16.31}]}, {"name": "ARIS INDUSTRIAL S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 83219.395, "totalDeducciones": 1664.3879, "utilidadNeta": 81555.0071}, "products": [{"producto": "DUELO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.2264, "stock": 131.0, "estadoStock": "OPTIMO", "precioSistema": 70.0, "diferencia": 6.8536, "imptoRenta": 160.6584, "precioOrigUSD": 17.52, "costoUnit": 63.1464, "montoBrutoUSD": 2295.12, "montoBrutoSoles": 8032.92}, {"producto": "AZUFRE PANTERA X 25 KG", "contenido": "25 KG", "flete": 0.6, "rentaProd": 2.065, "stock": 431.0, "estadoStock": "OPTIMO", "precioSistema": 130.0, "diferencia": 24.085, "imptoRenta": 890.015, "precioOrigUSD": 29.5, "costoUnit": 105.915, "montoBrutoUSD": 12714.5, "montoBrutoSoles": 44500.75}, {"producto": "LEGADO X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.5782, "stock": 201.0, "estadoStock": "OPTIMO", "precioSistema": 38.0, "diferencia": 7.9118, "imptoRenta": 116.2182, "precioOrigUSD": 8.26, "costoUnit": 30.0882, "montoBrutoUSD": 1660.26, "montoBrutoSoles": 5810.91}, {"producto": "SANFOSATO X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.2779, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 15.0, "diferencia": -0.2271, "imptoRenta": 0.2779, "precioOrigUSD": 3.97, "costoUnit": 14.7729, "montoBrutoUSD": 3.97, "montoBrutoSoles": 13.895}, {"producto": "ABAFIN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.3962, "stock": 29.0, "estadoStock": "OPTIMO", "precioSistema": 30.0, "diferencia": 9.1938, "imptoRenta": 11.4898, "precioOrigUSD": 5.66, "costoUnit": 20.8062, "montoBrutoUSD": 164.14, "montoBrutoSoles": 574.49}, {"producto": "PODIUM 250EW 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.665, "stock": 6.0, "estadoStock": "STOCK BAJO", "precioSistema": 50.0, "diferencia": 15.485, "imptoRenta": 3.99, "precioOrigUSD": 9.5, "costoUnit": 34.515, "montoBrutoUSD": 57, "montoBrutoSoles": 199.5}, {"producto": "BINOMIO X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.6818, "stock": 2.0, "estadoStock": "STOCK BAJO", "precioSistema": 52.0, "diferencia": 16.6282, "imptoRenta": 1.3636, "precioOrigUSD": 9.74, "costoUnit": 35.3718, "montoBrutoUSD": 19.48, "montoBrutoSoles": 68.18}, {"producto": "COACH 200SC 1 LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.4042, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 80.0, "diferencia": 7.7858, "imptoRenta": 0, "precioOrigUSD": 20.06, "costoUnit": 72.2142, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "TERRAPHOS X", "contenido": "50KG", "flete": 0.6, "rentaProd": 1.575, "stock": 305.0, "estadoStock": "OPTIMO", "precioSistema": 96.0, "diferencia": 15.075, "imptoRenta": 480.375, "precioOrigUSD": 22.5, "costoUnit": 80.925, "montoBrutoUSD": 6862.5, "montoBrutoSoles": 24018.75}]}, {"name": "FARMAGRO S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 115527.8817, "totalDeducciones": 1670.5794, "utilidadNeta": 113857.3023}, "products": [{"producto": "CICLON X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.7392, "stock": 130.0, "estadoStock": "OPTIMO", "precioSistema": 46.0, "diferencia": -7.7008, "imptoRenta": 96.096, "precioOrigUSD": 10.56, "costoUnit": 38.2992, "montoBrutoUSD": 1372.8, "montoBrutoSoles": 4804.8}, {"producto": "DELTAPLUS 2.5EC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.7602, "stock": 104.0, "estadoStock": "OPTIMO", "precioSistema": 45.0, "diferencia": 5.6298, "imptoRenta": 79.0608, "precioOrigUSD": 10.86, "costoUnit": 39.3702, "montoBrutoUSD": 1129.44, "montoBrutoSoles": 3953.04}, {"producto": "ETHREL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.5101, "stock": 10, "estadoStock": "STOCK BAJO", "precioSistema": 245.0, "diferencia": 14.3849, "imptoRenta": 45.101, "precioOrigUSD": 64.43, "costoUnit": 230.6151, "montoBrutoUSD": 644.3, "montoBrutoSoles": 2255.05}, {"producto": "HUMITECH", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.2611, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 20.0, "diferencia": -6.0839, "imptoRenta": 0, "precioOrigUSD": 3.73, "costoUnit": 13.9161, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "LEXONE 480SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.4329, "stock": 101.0, "estadoStock": "OPTIMO", "precioSistema": 83.0, "diferencia": 9.3221, "imptoRenta": 144.7229, "precioOrigUSD": 20.47, "costoUnit": 73.6779, "montoBrutoUSD": 2067.47, "montoBrutoSoles": 7236.145}, {"producto": "LEXONE X 250CC", "contenido": "250CC", "flete": 0.6, "rentaProd": 0.4081, "stock": 24.0, "estadoStock": "OPTIMO", "precioSistema": 29.0, "diferencia": 7.5869, "imptoRenta": 9.7944, "precioOrigUSD": 5.83, "costoUnit": 21.4131, "montoBrutoUSD": 139.92, "montoBrutoSoles": 489.72}, {"producto": "MINECTO DUO 40 WG X 100G", "contenido": "100 gr", "flete": 0.6, "rentaProd": 1.0682, "stock": 145.0, "estadoStock": "OPTIMO", "precioSistema": 70.0, "diferencia": 14.9218, "imptoRenta": 154.889, "precioOrigUSD": 15.26, "costoUnit": 55.0782, "montoBrutoUSD": 2212.7, "montoBrutoSoles": 7744.45}, {"producto": "SCUADRA SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.2439, "stock": 19.0, "estadoStock": "OPTIMO", "precioSistema": 75.0, "diferencia": 10.9611, "imptoRenta": 23.6341, "precioOrigUSD": 17.77, "costoUnit": 64.0389, "montoBrutoUSD": 337.63, "montoBrutoSoles": 1181.705}, {"producto": "RAPIBROT 50SL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.4165, "stock": 34.0, "estadoStock": "OPTIMO", "precioSistema": 26.0, "diferencia": 4.1585, "imptoRenta": 14.161, "precioOrigUSD": 5.95, "costoUnit": 21.8415, "montoBrutoUSD": 202.3, "montoBrutoSoles": 708.05}, {"producto": "RAPIBROT X 4LT", "contenido": "4 litros", "flete": 0.6, "rentaProd": 1.5519, "stock": 3.0, "estadoStock": "STOCK BAJO", "precioSistema": 85.0, "diferencia": 5.2531, "imptoRenta": 4.6557, "precioOrigUSD": 22.17, "costoUnit": 79.7469, "montoBrutoUSD": 66.51, "montoBrutoSoles": 232.785}, {"producto": "SELECRON 500EC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.543794, "stock": 11.0, "estadoStock": "STOCK BAJO", "precioSistema": 82.0, "diferencia": 2.666506, "imptoRenta": 16.981734, "precioOrigUSD": 22.0542, "costoUnit": 79.333494, "montoBrutoUSD": 242.5962, "montoBrutoSoles": 849.0867}, {"producto": "GRANOLATE PLUS X 10KG", "contenido": "10 kg", "flete": 0.6, "rentaProd": 0.49, "stock": 176.0, "estadoStock": "OPTIMO", "precioSistema": 33.0, "diferencia": 7.41, "imptoRenta": 86.24, "precioOrigUSD": 7.0, "costoUnit": 25.59, "montoBrutoUSD": 1232, "montoBrutoSoles": 4312}, {"producto": "ETHREL X 100ML", "contenido": "100 ml", "flete": 0.6, "rentaProd": 0.504, "stock": 22, "estadoStock": "OPTIMO", "precioSistema": 34.0, "diferencia": 7.696, "imptoRenta": 11.088, "precioOrigUSD": 7.2, "costoUnit": 26.304, "montoBrutoUSD": 158.4, "montoBrutoSoles": 554.4}, {"producto": "ULTRAPYR X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.6016, "stock": 31.0, "estadoStock": "OPTIMO", "precioSistema": 90.0, "diferencia": 7.7184, "imptoRenta": 49.6496, "precioOrigUSD": 22.88, "costoUnit": 82.2816, "montoBrutoUSD": 709.28, "montoBrutoSoles": 2482.48}, {"producto": "SISTEMA INVENTARIO - SEMILLAS", "contenido": null, "flete": null, "rentaProd": null, "stock": null, "estadoStock": null, "precioSistema": null, "diferencia": null, "imptoRenta": null, "precioOrigUSD": null, "costoUnit": null, "montoBrutoUSD": null, "montoBrutoSoles": null}, {"producto": "PRODUCTO", "contenido": "FLETE", "flete": "IMPUESTO BOLSA ", "rentaProd": null, "stock": "STOCK SISTEMA", "estadoStock": "ESTADO STOCK", "precioSistema": "PRECIO SISTEMA", "diferencia": "DIFERENCIA", "imptoRenta": "IMPTO. RENTA (2% - S/.)", "precioOrigUSD": "PRECIO ORIG. (USD $)", "costoUnit": "COSTO UNIT.", "montoBrutoUSD": "MONTO BRUTO (USD $)", "montoBrutoSoles": "MONTO BRUTO (S/.)"}, {"producto": "SEMILLA DE MAIZ DRACO", "contenido": 5.0, "flete": 10.0, "rentaProd": null, "stock": 138.0, "estadoStock": "OPTIMO", "precioSistema": 610.0, "diferencia": 24.535, "imptoRenta": 1574.4834, "precioOrigUSD": 162.99, "costoUnit": 585.465, "montoBrutoUSD": 22492.62, "montoBrutoSoles": 78724.17}]}, {"name": "NEOAGRUM S.A.C.", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 53350.01, "totalDeducciones": 1067.0002, "utilidadNeta": 52283.0098}, "products": [{"producto": "ACARSTIN X 1LT", "contenido": "1 LITRO", "flete": 0.6, "rentaProd": 3.9032, "stock": 23.0, "estadoStock": "OPTIMO", "precioSistema": 210.0, "diferencia": -10.3368, "imptoRenta": 89.7736, "precioOrigUSD": 55.76, "costoUnit": 199.6632, "montoBrutoUSD": 1282.48, "montoBrutoSoles": 4488.68}, {"producto": "CONTROLLER X 100GR", "contenido": "100 GR", "flete": 0.6, "rentaProd": 0.3591, "stock": 367.0, "estadoStock": "OPTIMO", "precioSistema": 22.0, "diferencia": 3.0859, "imptoRenta": 131.7897, "precioOrigUSD": 5.13, "costoUnit": 18.9141, "montoBrutoUSD": 1882.71, "montoBrutoSoles": 6589.485}, {"producto": "EXTRAVON X 1LT", "contenido": "1 LT", "flete": 0.6, "rentaProd": 0.2135, "stock": 10.0, "estadoStock": "STOCK BAJO", "precioSistema": 18.0, "diferencia": 6.5115, "imptoRenta": 2.135, "precioOrigUSD": 3.05, "costoUnit": 11.4885, "montoBrutoUSD": 30.5, "montoBrutoSoles": 106.75}, {"producto": "BENZOMIL X 200GR", "contenido": "200 gr", "flete": 0.6, "rentaProd": 0.2464, "stock": 82.0, "estadoStock": "OPTIMO", "precioSistema": 17.0, "diferencia": 3.8336, "imptoRenta": 20.2048, "precioOrigUSD": 3.52, "costoUnit": 13.1664, "montoBrutoUSD": 288.64, "montoBrutoSoles": 1010.24}, {"producto": "FENKIL X 1LT", "contenido": "1 LITRO", "flete": 0.6, "rentaProd": 1.0325, "stock": 265.0, "estadoStock": "OPTIMO", "precioSistema": 57.0, "diferencia": -3.7425, "imptoRenta": 273.6125, "precioOrigUSD": 14.75, "costoUnit": 53.2575, "montoBrutoUSD": 3908.75, "montoBrutoSoles": 13680.625}, {"producto": "FORTE 50PM X 200GR", "contenido": "250 GR", "flete": 0.6, "rentaProd": 0.4263, "stock": 256.0, "estadoStock": "OPTIMO", "precioSistema": 26.0, "diferencia": 3.6587, "imptoRenta": 109.1328, "precioOrigUSD": 6.09, "costoUnit": 22.3413, "montoBrutoUSD": 1559.04, "montoBrutoSoles": 5456.64}, {"producto": "GALBEN X KG", "contenido": "1 KG", "flete": 0.6, "rentaProd": 0.8323, "stock": 29.0, "estadoStock": "OPTIMO", "precioSistema": 50.0, "diferencia": 6.9527, "imptoRenta": 24.1367, "precioOrigUSD": 11.89, "costoUnit": 43.0473, "montoBrutoUSD": 344.81, "montoBrutoSoles": 1206.835}, {"producto": "GRAVITY 500WG X 200GR", "contenido": "200GR", "flete": 0.6, "rentaProd": 0.3388, "stock": 43.0, "estadoStock": "OPTIMO", "precioSistema": 19.0, "diferencia": 1.1212, "imptoRenta": 14.5684, "precioOrigUSD": 4.84, "costoUnit": 17.8788, "montoBrutoUSD": 208.12, "montoBrutoSoles": 728.42}, {"producto": "KIETO 150WG X 100 GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.3591, "stock": 359.0, "estadoStock": "OPTIMO", "precioSistema": 22.0, "diferencia": 3.0859, "imptoRenta": 128.9169, "precioOrigUSD": 5.13, "costoUnit": 18.9141, "montoBrutoUSD": 1841.67, "montoBrutoSoles": 6445.845}, {"producto": "LUXAZIM X 1LT", "contenido": "1 LITRO", "flete": 0.6, "rentaProd": 0.5698, "stock": 34.0, "estadoStock": "OPTIMO", "precioSistema": 34.0, "diferencia": 4.3402, "imptoRenta": 19.3732, "precioOrigUSD": 8.14, "costoUnit": 29.6598, "montoBrutoUSD": 276.76, "montoBrutoSoles": 968.66}, {"producto": "SEGURITE X 100G", "contenido": "100 GR", "flete": 0.6, "rentaProd": 0.8176, "stock": 185.0, "estadoStock": "OPTIMO", "precioSistema": 47.0, "diferencia": 4.7024, "imptoRenta": 151.256, "precioOrigUSD": 11.68, "costoUnit": 42.2976, "montoBrutoUSD": 2160.8, "montoBrutoSoles": 7562.8}, {"producto": "SELLADOR X 1 L.", "contenido": "1 LITRO", "flete": 0.6, "rentaProd": 0.6069, "stock": 134.0, "estadoStock": "OPTIMO", "precioSistema": 36.0, "diferencia": 4.4481, "imptoRenta": 81.3246, "precioOrigUSD": 8.67, "costoUnit": 31.5519, "montoBrutoUSD": 1161.78, "montoBrutoSoles": 4066.23}, {"producto": "CONTROLLER 350SC X 1LT", "contenido": "1 LITRO", "flete": 0.6, "rentaProd": 1.0388, "stock": 20.0, "estadoStock": "OPTIMO", "precioSistema": 46.0, "diferencia": -7.5788, "imptoRenta": 20.776, "precioOrigUSD": 14.84, "costoUnit": 53.5788, "montoBrutoUSD": 296.8, "montoBrutoSoles": 1038.8}]}, {"name": "FARMEX S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 274990.38, "totalDeducciones": 5499.8076, "utilidadNeta": 269490.5724}, "products": [{"producto": "ABAMEX 1.8 EC X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.8176, "stock": 22.0, "estadoStock": "ÓPTIMO", "precioSistema": 49.0, "diferencia": -6.7024, "imptoRenta": 17.9872, "precioOrigUSD": 11.68, "costoUnit": 42.2976, "montoBrutoUSD": 256.96, "montoBrutoSoles": 899.36}, {"producto": "ABSOLUTE X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 15.0906, "stock": 11.0, "estadoStock": "STOCK BAJO", "precioSistema": 780.0, "diferencia": 9.7794, "imptoRenta": 165.9966, "precioOrigUSD": 215.58, "costoUnit": 770.2206, "montoBrutoUSD": 2371.38, "montoBrutoSoles": 8299.83}, {"producto": "ATROPIK X LT ", "contenido": "1 LITRO", "flete": 0.4, "rentaProd": 0.4012, "stock": 37.0, "estadoStock": "ÓPTIMO", "precioSistema": 85.0, "diferencia": 13.9888, "imptoRenta": 51.9554, "precioOrigUSD": 20.06, "costoUnit": 71.0112, "montoBrutoUSD": 742.22, "montoBrutoSoles": 2597.77}, {"producto": "AVENGER X 100 GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.1323, "stock": 854.0, "estadoStock": "ÓPTIMO", "precioSistema": 12.0, "diferencia": 4.6527, "imptoRenta": 112.9842, "precioOrigUSD": 1.89, "costoUnit": 7.3473, "montoBrutoUSD": 1614.06, "montoBrutoSoles": 5649.21}, {"producto": "ABSOLUTE X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 3.829, "stock": 20.0, "estadoStock": "ÓPTIMO", "precioSistema": 205.0, "diferencia": -9.121, "imptoRenta": 76.58, "precioOrigUSD": 54.7, "costoUnit": 195.879, "montoBrutoUSD": 1094, "montoBrutoSoles": 3829}, {"producto": "AMINOQUELANT- CA X 1L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 84.0, "estadoStock": "ÓPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CIPERMEX SUPER 10CE X", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.7021, "stock": 92.0, "estadoStock": "ÓPTIMO", "precioSistema": 45.0, "diferencia": 8.5929, "imptoRenta": 64.5932, "precioOrigUSD": 10.03, "costoUnit": 36.4071, "montoBrutoUSD": 922.76, "montoBrutoSoles": 3229.66}, {"producto": "DELTOX 2.5EC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.84, "stock": 39.0, "estadoStock": "ÓPTIMO", "precioSistema": 55.0, "diferencia": 11.56, "imptoRenta": 32.76, "precioOrigUSD": 12.0, "costoUnit": 43.44, "montoBrutoUSD": 468, "montoBrutoSoles": 1638}, {"producto": "HIELOXIL MIX 72 WP X 1 K", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.9912, "stock": 215.0, "estadoStock": "ÓPTIMO", "precioSistema": 57.0, "diferencia": 5.8488, "imptoRenta": 213.108, "precioOrigUSD": 14.16, "costoUnit": 51.1512, "montoBrutoUSD": 3044.4, "montoBrutoSoles": 10655.4}, {"producto": "IRONMAN X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "KYT-GREEN X 1L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.518, "stock": 9.0, "estadoStock": "STOCK BAJO", "precioSistema": 33.0, "diferencia": 5.982, "imptoRenta": 4.662, "precioOrigUSD": 7.4, "costoUnit": 27.018, "montoBrutoUSD": 66.6, "montoBrutoSoles": 233.1}, {"producto": "KAMAB 26 S X 1.5 KG", "contenido": "1.5 kg", "flete": 0.6, "rentaProd": 1.225, "stock": 54.0, "estadoStock": "ÓPTIMO", "precioSistema": 75.0, "diferencia": 11.925, "imptoRenta": 66.15, "precioOrigUSD": 17.5, "costoUnit": 63.075, "montoBrutoUSD": 945, "montoBrutoSoles": 3307.5}, {"producto": "LAMBFAST 5 EC X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 5.25, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 75.0, "diferencia": -193.35, "imptoRenta": 5.25, "precioOrigUSD": 75.0, "costoUnit": 268.35, "montoBrutoUSD": 75, "montoBrutoSoles": 262.5}, {"producto": "LAMBFAST X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0, "stock": 7.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "LANNATE 40 PS X 135 G", "contenido": "135 g", "flete": 0.6, "rentaProd": 0.2394, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 15.0, "diferencia": 2.1906, "imptoRenta": 0.2394, "precioOrigUSD": 3.42, "costoUnit": 12.8094, "montoBrutoUSD": 3.42, "montoBrutoSoles": 11.97}, {"producto": "LETAL X 25GR", "contenido": "25 g", "flete": 0.6, "rentaProd": 0, "stock": 7.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "LANCER X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.239, "stock": 377.0, "estadoStock": "ÓPTIMO", "precioSistema": 70.0, "diferencia": -6.211, "imptoRenta": 467.103, "precioOrigUSD": 17.7, "costoUnit": 63.789, "montoBrutoUSD": 6672.9, "montoBrutoSoles": 23355.15}, {"producto": "LANCER X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0.392, "stock": 20.0, "estadoStock": "ÓPTIMO", "precioSistema": 30.0, "diferencia": -9.408, "imptoRenta": 7.84, "precioOrigUSD": 5.6, "costoUnit": 20.592, "montoBrutoUSD": 112, "montoBrutoSoles": 392}, {"producto": "MAXIFRUT X 1L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.63, "stock": 23.0, "estadoStock": "ÓPTIMO", "precioSistema": 40.0, "diferencia": -7.27, "imptoRenta": 14.49, "precioOrigUSD": 9.0, "costoUnit": 32.73, "montoBrutoUSD": 207, "montoBrutoSoles": 724.5}, {"producto": "POWERGIZER 45 X 1 L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.5026, "stock": 185.0, "estadoStock": "ÓPTIMO", "precioSistema": 34.0, "diferencia": 7.7674, "imptoRenta": 92.981, "precioOrigUSD": 7.18, "costoUnit": 26.2326, "montoBrutoUSD": 1328.3, "montoBrutoSoles": 4649.05}, {"producto": "PREZA X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 20.0, "estadoStock": "ÓPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ROUNDUP X 1L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.3885, "stock": 9758.0, "estadoStock": "ÓPTIMO", "precioSistema": 26.0, "diferencia": 5.5865, "imptoRenta": 3790.983, "precioOrigUSD": 5.55, "costoUnit": 20.4135, "montoBrutoUSD": 54156.9, "montoBrutoSoles": 189549.15}, {"producto": "TRIGGRR FOLIAR X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.4042, "stock": 46.0, "estadoStock": "ÓPTIMO", "precioSistema": 80.0, "diferencia": 7.7858, "imptoRenta": 64.5932, "precioOrigUSD": 20.06, "costoUnit": 72.2142, "montoBrutoUSD": 922.76, "montoBrutoSoles": 3229.66}, {"producto": "TRIGGRR SUELO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.6107, "stock": 21.0, "estadoStock": "ÓPTIMO", "precioSistema": 95.0, "diferencia": 12.2543, "imptoRenta": 33.8247, "precioOrigUSD": 23.01, "costoUnit": 82.7457, "montoBrutoUSD": 483.21, "montoBrutoSoles": 1691.235}, {"producto": "VYDATE L X 1 L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.6583, "stock": 81.0, "estadoStock": "ÓPTIMO", "precioSistema": 92.0, "diferencia": 6.8267, "imptoRenta": 134.3223, "precioOrigUSD": 23.69, "costoUnit": 85.1733, "montoBrutoUSD": 1918.89, "montoBrutoSoles": 6716.115}, {"producto": "CIPERMEX SUPER 10CE X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0.2394, "stock": 52.0, "estadoStock": "ÓPTIMO", "precioSistema": 18.0, "diferencia": 5.1906, "imptoRenta": 0, "precioOrigUSD": 3.42, "costoUnit": 12.8094, "montoBrutoUSD": 177.84, "montoBrutoSoles": 0}, {"producto": "TRIGGRR TRIHORMONAL X 1 L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.7556, "stock": 25.0, "estadoStock": "ÓPTIMO", "precioSistema": 95.0, "diferencia": 4.8644, "imptoRenta": 43.89, "precioOrigUSD": 25.08, "costoUnit": 90.1356, "montoBrutoUSD": 627, "montoBrutoSoles": 2194.5}, {"producto": "SISTEMA INVENTARIO - SEMILLAS", "contenido": null, "flete": null, "rentaProd": null, "stock": null, "estadoStock": null, "precioSistema": null, "diferencia": null, "imptoRenta": null, "precioOrigUSD": null, "costoUnit": null, "montoBrutoUSD": null, "montoBrutoSoles": null}, {"producto": "PRODUCTO", "contenido": "FLETE", "flete": "IMPUESTO BOLSA ", "rentaProd": null, "stock": "STOCK SISTEMA", "estadoStock": "ESTADO STOCK", "precioSistema": "PRECIO SISTEMA", "diferencia": "DIFERENCIA", "imptoRenta": "IMPTO. RENTA (2% - S/.)", "precioOrigUSD": "PRECIO ORIG. (USD $)", "costoUnit": "COSTO UNIT.", "montoBrutoUSD": "MONTO BRUTO (USD $)", "montoBrutoSoles": "MONTO BRUTO (S/.)"}, {"producto": "SEM.MAIZ HIBRIDO DK-7508", "contenido": 5.0, "flete": 10.0, "rentaProd": null, "stock": 3.0, "estadoStock": "STOCK BAJO", "precioSistema": 830.0, "diferencia": 189.76, "imptoRenta": 37.5144, "precioOrigUSD": 178.64, "costoUnit": 640.24, "montoBrutoUSD": 535.92, "montoBrutoSoles": 1875.72}]}, {"name": "ITAGRO S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 50702.47, "totalDeducciones": 1014.0494, "utilidadNeta": 49688.4206}, "products": [{"producto": "INTENSO 500 WG BLS. X 100 GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.3717, "stock": 280.0, "estadoStock": "OPTIMO", "precioSistema": 20.0, "diferencia": -0.4433, "imptoRenta": 104.076, "precioOrigUSD": 5.31, "costoUnit": 19.5567, "montoBrutoUSD": 1486.8, "montoBrutoSoles": 5203.8}, {"producto": "ITACLOR PYR X LT", "contenido": "12 lt una caja", "flete": 0.6, "rentaProd": 1.5862, "stock": 50.0, "estadoStock": "OPTIMO", "precioSistema": 90.0, "diferencia": 8.5038, "imptoRenta": 79.31, "precioOrigUSD": 22.66, "costoUnit": 81.4962, "montoBrutoUSD": 1133, "montoBrutoSoles": 3965.5}, {"producto": "ITASATO 757 SG X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.4543, "stock": 950.0, "estadoStock": "OPTIMO", "precioSistema": 29.0, "diferencia": 5.2307, "imptoRenta": 431.585, "precioOrigUSD": 6.49, "costoUnit": 23.7693, "montoBrutoUSD": 6165.5, "montoBrutoSoles": 21579.25}, {"producto": "ITRAMAT SC FCO. X 1 L", "contenido": "12 lt una caja", "flete": 0.6, "rentaProd": 4.2952, "stock": 12.0, "estadoStock": "STOCK BAJO", "precioSistema": 220.0, "diferencia": -0.3448, "imptoRenta": 51.5424, "precioOrigUSD": 61.36, "costoUnit": 219.6552, "montoBrutoUSD": 736.32, "montoBrutoSoles": 2577.12}, {"producto": "RANKILL 500CE FCO X 1LT", "contenido": "12 lt una caja", "flete": 0.6, "rentaProd": 0.994, "stock": 20.0, "estadoStock": "OPTIMO", "precioSistema": 55.0, "diferencia": 3.706, "imptoRenta": 19.88, "precioOrigUSD": 14.2, "costoUnit": 51.294, "montoBrutoUSD": 284, "montoBrutoSoles": 994}, {"producto": "RAPIFOL X 10GR", "contenido": "pastillas", "flete": 0.6, "rentaProd": 0.042, "stock": 4653.0, "estadoStock": "OPTIMO", "precioSistema": 6.0, "diferencia": 3.258, "imptoRenta": 195.426, "precioOrigUSD": 0.6, "costoUnit": 2.742, "montoBrutoUSD": 2791.8, "montoBrutoSoles": 9771.3}, {"producto": "VITAFOL PLUS ENGROSE 12-5-55 BLS X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.196, "stock": 185.0, "estadoStock": "OPTIMO", "precioSistema": 18.0, "diferencia": 7.404, "imptoRenta": 36.26, "precioOrigUSD": 2.8, "costoUnit": 10.596, "montoBrutoUSD": 518, "montoBrutoSoles": 1813}, {"producto": "VITAFOL PLUS FLORACIÓN 10-55-10 BLS. X 1 KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.21, "stock": 297.0, "estadoStock": "OPTIMO", "precioSistema": 18.0, "diferencia": 6.69, "imptoRenta": 62.37, "precioOrigUSD": 3.0, "costoUnit": 11.31, "montoBrutoUSD": 891, "montoBrutoSoles": 3118.5}, {"producto": "VITAFOL PLUS MULTIPROPOSITO 20-20-20 BLS. ", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.21, "stock": 160.0, "estadoStock": "OPTIMO", "precioSistema": 18.0, "diferencia": 6.69, "imptoRenta": 33.6, "precioOrigUSD": 3.0, "costoUnit": 11.31, "montoBrutoUSD": 480, "montoBrutoSoles": 1680}]}, {"name": "INTEROC S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 404755.015, "totalDeducciones": 8095.1003, "utilidadNeta": 396659.9147}, "products": [{"producto": "SPIRAL 240SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.5694, "stock": 27.0, "estadoStock": "OPTIMO", "precioSistema": 90.0, "diferencia": -9.3606, "imptoRenta": 42.3738, "precioOrigUSD": 22.42, "costoUnit": 80.6394, "montoBrutoUSD": 605.34, "montoBrutoSoles": 2118.69}, {"producto": "BENPROX 250SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.987, "stock": 106.0, "estadoStock": "OPTIMO", "precioSistema": 65.0, "diferencia": 14.063, "imptoRenta": 104.622, "precioOrigUSD": 14.1, "costoUnit": 50.937, "montoBrutoUSD": 1494.6, "montoBrutoSoles": 5231.1}, {"producto": "OCAREN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.8172, "stock": 54.0, "estadoStock": "OPTIMO", "precioSistema": 94.0, "diferencia": 0.7228, "imptoRenta": 98.1288, "precioOrigUSD": 25.96, "costoUnit": 93.2772, "montoBrutoUSD": 1401.84, "montoBrutoSoles": 4906.44}, {"producto": "URKAN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.2635, "stock": 69.0, "estadoStock": "OPTIMO", "precioSistema": 77.0, "diferencia": -11.9615, "imptoRenta": 87.1815, "precioOrigUSD": 18.05, "costoUnit": 65.0385, "montoBrutoUSD": 1245.45, "montoBrutoSoles": 4359.075}, {"producto": "METRALLA 350WP X 150G", "contenido": "150 gr", "flete": 0.6, "rentaProd": 0.3304, "stock": 296.0, "estadoStock": "OPTIMO", "precioSistema": 23.0, "diferencia": 5.5496, "imptoRenta": 97.7984, "precioOrigUSD": 4.72, "costoUnit": 17.4504, "montoBrutoUSD": 1397.12, "montoBrutoSoles": 4889.92}, {"producto": "CHEKKER 600WG X 100GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.4956, "stock": 646.0, "estadoStock": "OPTIMO", "precioSistema": 30.0, "diferencia": 4.1244, "imptoRenta": 320.1576, "precioOrigUSD": 7.08, "costoUnit": 25.8756, "montoBrutoUSD": 4573.68, "montoBrutoSoles": 16007.88}, {"producto": "KRAKEN 480 WP 250GR", "contenido": "250 gr", "flete": 0.6, "rentaProd": 0.6195, "stock": 611.0, "estadoStock": "OPTIMO", "precioSistema": 42.0, "diferencia": 9.8055, "imptoRenta": 378.5145, "precioOrigUSD": 8.85, "costoUnit": 32.1945, "montoBrutoUSD": 5407.35, "montoBrutoSoles": 18925.725}, {"producto": "FARMOZINE X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.3388, "stock": 1795.0, "estadoStock": "OPTIMO", "precioSistema": 23.0, "diferencia": 5.1212, "imptoRenta": 608.146, "precioOrigUSD": 4.84, "costoUnit": 17.8788, "montoBrutoUSD": 8687.8, "montoBrutoSoles": 30407.3}, {"producto": "ACTUP 250WG X 100GR", "contenido": "100 gr ", "flete": 0.6, "rentaProd": 0.2562, "stock": 61.0, "estadoStock": "OPTIMO", "precioSistema": 16.0, "diferencia": 2.3338, "imptoRenta": 15.6282, "precioOrigUSD": 3.66, "costoUnit": 13.6662, "montoBrutoUSD": 223.26, "montoBrutoSoles": 781.41}, {"producto": "ARAGON X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 3.9648, "stock": 122.0, "estadoStock": "OPTIMO", "precioSistema": 215.0, "diferencia": 12.1952, "imptoRenta": 483.7056, "precioOrigUSD": 56.64, "costoUnit": 202.8048, "montoBrutoUSD": 6910.08, "montoBrutoSoles": 24185.28}, {"producto": "VERZUS X 100GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.0994, "stock": 2046.0, "estadoStock": "OPTIMO", "precioSistema": 7.0, "diferencia": 1.3306, "imptoRenta": 203.3724, "precioOrigUSD": 1.42, "costoUnit": 5.6694, "montoBrutoUSD": 2905.32, "montoBrutoSoles": 10168.62}, {"producto": "KUARTEL 200SC 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.3885, "stock": 1975.0, "estadoStock": "OPTIMO", "precioSistema": 30.0, "diferencia": 9.5865, "imptoRenta": 767.2875, "precioOrigUSD": 5.55, "costoUnit": 20.4135, "montoBrutoUSD": 10961.25, "montoBrutoSoles": 38364.375}, {"producto": "MAXI-COVER SL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.9912, "stock": 467.0, "estadoStock": "OPTIMO", "precioSistema": 65.0, "diferencia": 13.8488, "imptoRenta": 462.8904, "precioOrigUSD": 14.16, "costoUnit": 51.1512, "montoBrutoUSD": 6612.72, "montoBrutoSoles": 23144.52}, {"producto": "ERRASER X KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.5201, "stock": 32.0, "estadoStock": "OPTIMO", "precioSistema": 30.0, "diferencia": 2.8749, "imptoRenta": 16.6432, "precioOrigUSD": 7.43, "costoUnit": 27.1251, "montoBrutoUSD": 237.76, "montoBrutoSoles": 832.16}, {"producto": "NOSTOC 40 OD X 1 LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.4627, "stock": 117.0, "estadoStock": "OPTIMO", "precioSistema": 32.0, "diferencia": 7.8023, "imptoRenta": 54.1359, "precioOrigUSD": 6.61, "costoUnit": 24.1977, "montoBrutoUSD": 773.37, "montoBrutoSoles": 2706.795}, {"producto": "SPONSOR 800WP 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.6923, "stock": 338.0, "estadoStock": "OPTIMO", "precioSistema": 38.0, "diferencia": 2.0927, "imptoRenta": 233.9974, "precioOrigUSD": 9.89, "costoUnit": 35.9073, "montoBrutoUSD": 3342.82, "montoBrutoSoles": 11699.87}, {"producto": "STRICTO 500WG X 200GR", "contenido": "200 gr", "flete": 0.6, "rentaProd": 0.9086, "stock": 474.0, "estadoStock": "OPTIMO", "precioSistema": 50.0, "diferencia": 3.0614, "imptoRenta": 430.6764, "precioOrigUSD": 12.98, "costoUnit": 46.9386, "montoBrutoUSD": 6152.52, "montoBrutoSoles": 21533.82}, {"producto": "CRUCIAL PLUS 350ML", "contenido": "350 ml", "flete": 0.6, "rentaProd": 0.8673, "stock": 255.0, "estadoStock": "OPTIMO", "precioSistema": 53.0, "diferencia": 8.1677, "imptoRenta": 221.1615, "precioOrigUSD": 12.39, "costoUnit": 44.8323, "montoBrutoUSD": 3159.45, "montoBrutoSoles": 11058.075}, {"producto": "SISTEMA INVENTARIO - SEMILLAS", "contenido": null, "flete": null, "rentaProd": null, "stock": null, "estadoStock": null, "precioSistema": null, "diferencia": null, "imptoRenta": null, "precioOrigUSD": null, "costoUnit": null, "montoBrutoUSD": null, "montoBrutoSoles": null}, {"producto": "PRODUCTO", "contenido": "FLETE", "flete": "IMPUESTO BOLSA ", "rentaProd": null, "stock": "STOCK SISTEMA", "estadoStock": "ESTADO STOCK", "precioSistema": "PRECIO SISTEMA", "diferencia": "DIFERENCIA", "imptoRenta": "IMPTO. RENTA (2% - S/.)", "precioOrigUSD": "PRECIO ORIG. (USD $)", "costoUnit": "COSTO UNIT.", "montoBrutoUSD": "MONTO BRUTO (USD $)", "montoBrutoSoles": "MONTO BRUTO (S/.)"}, {"producto": "SEM DE MAIZ INSIGNIA PAC 860*60,000", "contenido": 5.0, "flete": 10.0, "rentaProd": null, "stock": 243.0, "estadoStock": "OPTIMO", "precioSistema": 740.0, "diferencia": 11.28, "imptoRenta": 3468.6792, "precioOrigUSD": 203.92, "costoUnit": 728.72, "montoBrutoUSD": 49552.56, "montoBrutoSoles": 173433.96}, {"producto": "SEM. MAIZ SA282 BIO 60,000+NUTRI 20KG EXO", "contenido": 5.0, "flete": 10.0, "rentaProd": null, "stock": 0.0, "estadoStock": "STOCK BAJO", "precioSistema": 700.0, "diferencia": 52.5, "imptoRenta": 0, "precioOrigUSD": 185.0, "costoUnit": 647.5, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SEM DE MAIZ ATLAS PAC 777", "contenido": 5.0, "flete": 10.0, "rentaProd": null, "stock": 86.0, "estadoStock": "OPTIMO", "precioSistema": 830.0, "diferencia": 39.903, "imptoRenta": 0, "precioOrigUSD": 225.742, "costoUnit": 790.097, "montoBrutoUSD": 19413.812, "montoBrutoSoles": 0}]}, {"name": "SERFI S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 140146.4512, "totalDeducciones": 2802.929024, "utilidadNeta": 137343.5222}, "products": [{"producto": "AGROSTEMIN GL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 2.4815, "stock": 86.0, "estadoStock": "OPTIMO", "precioSistema": 135.0, "diferencia": -7.8435, "imptoRenta": 213.409, "precioOrigUSD": 35.45, "costoUnit": 127.1565, "montoBrutoUSD": 3048.7, "montoBrutoSoles": 10670.45}, {"producto": "AGROSTEMIN GL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 2.401182, "stock": 48, "estadoStock": "OPTIMO", "precioSistema": 135.0, "diferencia": -11.939718, "imptoRenta": 115.256736, "precioOrigUSD": 34.3026, "costoUnit": 123.060282, "montoBrutoUSD": 1646.5248, "montoBrutoSoles": 5762.8368}, {"producto": "AGROSTEMIN GROW X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 2.0363, "stock": 128.0, "estadoStock": "OPTIMO", "precioSistema": 116.0, "diferencia": 11.5487, "imptoRenta": 260.6464, "precioOrigUSD": 29.09, "costoUnit": 104.4513, "montoBrutoUSD": 3723.52, "montoBrutoSoles": 13032.32}, {"producto": "AGROSTEMIN GROW X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.8235, "stock": 75.0, "estadoStock": "OPTIMO", "precioSistema": 116.0, "diferencia": 22.4015, "imptoRenta": 136.7625, "precioOrigUSD": 26.05, "costoUnit": 93.5985, "montoBrutoUSD": 1953.75, "montoBrutoSoles": 6838.125}, {"producto": "ENZIPROM X 1L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.7122, "stock": 584.0, "estadoStock": "OPTIMO", "precioSistema": 97.0, "diferencia": 9.0778, "imptoRenta": 999.9248, "precioOrigUSD": 24.46, "costoUnit": 87.9222, "montoBrutoUSD": 14284.64, "montoBrutoSoles": 49996.24}, {"producto": "OLIGOMIX - CO X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.3843, "stock": 304.0, "estadoStock": "OPTIMO", "precioSistema": 25.0, "diferencia": -4.8007, "imptoRenta": 116.8272, "precioOrigUSD": 5.49, "costoUnit": 20.1993, "montoBrutoUSD": 1668.96, "montoBrutoSoles": 5841.36}, {"producto": "OLIGOMIX - CO X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.3717, "stock": 300.0, "estadoStock": "OPTIMO", "precioSistema": 25.0, "diferencia": -5.4433, "imptoRenta": 111.51, "precioOrigUSD": 5.31, "costoUnit": 19.5567, "montoBrutoUSD": 1593, "montoBrutoSoles": 5575.5}, {"producto": "PHYTON X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.5171, "stock": 31.0, "estadoStock": "OPTIMO", "precioSistema": 240.0, "diferencia": 9.0279, "imptoRenta": 140.0301, "precioOrigUSD": 64.53, "costoUnit": 230.9721, "montoBrutoUSD": 2000.43, "montoBrutoSoles": 7001.505}, {"producto": "PROMET B X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.938, "stock": 132.0, "estadoStock": "OPTIMO", "precioSistema": 57.0, "diferencia": 8.562, "imptoRenta": 123.816, "precioOrigUSD": 13.4, "costoUnit": 48.438, "montoBrutoUSD": 1768.8, "montoBrutoSoles": 6190.8}, {"producto": "PROMET B X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.893732, "stock": 120.0, "estadoStock": "OPTIMO", "precioSistema": 57.0, "diferencia": 10.819668, "imptoRenta": 107.24784, "precioOrigUSD": 12.7676, "costoUnit": 46.180332, "montoBrutoUSD": 1532.112, "montoBrutoSoles": 5362.392}, {"producto": "PROMET CA X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.6916, "stock": 71.0, "estadoStock": "OPTIMO", "precioSistema": 43.0, "diferencia": 7.1284, "imptoRenta": 49.1036, "precioOrigUSD": 9.88, "costoUnit": 35.8716, "montoBrutoUSD": 701.48, "montoBrutoSoles": 2455.18}, {"producto": "PROMET MG X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.8064, "stock": 132.0, "estadoStock": "OPTIMO", "precioSistema": 49.0, "diferencia": 7.2736, "imptoRenta": 106.4448, "precioOrigUSD": 11.52, "costoUnit": 41.7264, "montoBrutoUSD": 1520.64, "montoBrutoSoles": 5322.24}, {"producto": "PROMET MG X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.744226, "stock": 120.0, "estadoStock": "OPTIMO", "precioSistema": 49.0, "diferencia": 10.444474, "imptoRenta": 89.30712, "precioOrigUSD": 10.6318, "costoUnit": 38.555526, "montoBrutoUSD": 1275.816, "montoBrutoSoles": 4465.356}, {"producto": "PROMET ZN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.6111, "stock": 97.0, "estadoStock": "OPTIMO", "precioSistema": 40.0, "diferencia": 8.2339, "imptoRenta": 59.2767, "precioOrigUSD": 8.73, "costoUnit": 31.7661, "montoBrutoUSD": 846.81, "montoBrutoSoles": 2963.835}, {"producto": "PROMET ZN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.581504, "stock": 72.0, "estadoStock": "OPTIMO", "precioSistema": 40.0, "diferencia": 9.743296, "imptoRenta": 41.868288, "precioOrigUSD": 8.3072, "costoUnit": 30.256704, "montoBrutoUSD": 598.1184, "montoBrutoSoles": 2093.4144}, {"producto": "QUIMIFOL PP 430 X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 5, "estadoStock": "STOCK BAJO", "precioSistema": 35.0, "diferencia": 35, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "QUIMIFOL KK300 X 1LT ", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 255.0, "estadoStock": "OPTIMO", "precioSistema": 35.0, "diferencia": 8.8766, "imptoRenta": 130.16934, "precioOrigUSD": 7.2924, "costoUnit": 26.1234, "montoBrutoUSD": 1859.562, "montoBrutoSoles": 6508.467}, {"producto": "QUIMIX X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.510468, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 85.0, "diferencia": 17.459532, "imptoRenta": 1.3286, "precioOrigUSD": 18.98, "costoUnit": 67.540468, "montoBrutoUSD": 18.98, "montoBrutoSoles": 66.43}]}, {"name": "SILVESTRE PERU S.A.C", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 58188.935, "totalDeducciones": 1163.7787, "utilidadNeta": 57025.1563}, "products": [{"producto": "AKRON 500WG X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.3437, "stock": 724.0, "estadoStock": "OPTIMO", "precioSistema": 24.0, "diferencia": -5.8713, "imptoRenta": 248.8388, "precioOrigUSD": 4.91, "costoUnit": 18.1287, "montoBrutoUSD": 3554.84, "montoBrutoSoles": 12441.94}, {"producto": "BROTSIL 520SL X 4LT", "contenido": "4 litros", "flete": 0.6, "rentaProd": 2.478, "stock": 5, "estadoStock": "STOCK BAJO", "precioSistema": 132.0, "diferencia": 5.022, "imptoRenta": 12.39, "precioOrigUSD": 35.4, "costoUnit": 126.978, "montoBrutoUSD": 177, "montoBrutoSoles": 619.5}, {"producto": "BUKRA 580WG X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.5719, "stock": 705.0, "estadoStock": "OPTIMO", "precioSistema": 35.0, "diferencia": 5.2331, "imptoRenta": 403.1895, "precioOrigUSD": 8.17, "costoUnit": 29.7669, "montoBrutoUSD": 5759.85, "montoBrutoSoles": 20159.475}, {"producto": "BULL FIRE X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "COLOSO X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.1323, "stock": 223.0, "estadoStock": "OPTIMO", "precioSistema": 8.0, "diferencia": 0.6527, "imptoRenta": 29.5029, "precioOrigUSD": 1.89, "costoUnit": 7.3473, "montoBrutoUSD": 421.47, "montoBrutoSoles": 1475.145}, {"producto": "EPICO 750WG X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.4494, "stock": 691.0, "estadoStock": "OPTIMO", "precioSistema": 24.0, "diferencia": 0.4806, "imptoRenta": 310.5354, "precioOrigUSD": 6.42, "costoUnit": 23.5194, "montoBrutoUSD": 4436.22, "montoBrutoSoles": 15526.77}, {"producto": "GIBER TAB 125 X PASTILLA", "contenido": "1 pastilla", "flete": 0.6, "rentaProd": 0, "stock": 9, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "STRONSIL X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0, "stock": 3.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SULFA PLUS 800WG X KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.2366, "stock": 346.0, "estadoStock": "OPTIMO", "precioSistema": 16.0, "diferencia": 3.3334, "imptoRenta": 81.8636, "precioOrigUSD": 3.38, "costoUnit": 12.6666, "montoBrutoUSD": 1169.48, "montoBrutoSoles": 4093.18}, {"producto": "TIEZO 300WG X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0, "stock": 113, "estadoStock": "OPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "TRUMEX X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "NICOZINE X  LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.2558, "stock": 19.0, "estadoStock": "OPTIMO", "precioSistema": 90.0, "diferencia": 25.3542, "imptoRenta": 23.8602, "precioOrigUSD": 17.94, "costoUnit": 64.6458, "montoBrutoUSD": 340.86, "montoBrutoSoles": 1193.01}, {"producto": "PROTURON X 100 GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.1029, "stock": 487.0, "estadoStock": "OPTIMO", "precioSistema": 11.0, "diferencia": 5.1521, "imptoRenta": 50.1123, "precioOrigUSD": 1.47, "costoUnit": 5.8479, "montoBrutoUSD": 715.89, "montoBrutoSoles": 2505.615}, {"producto": "ACID PH5 FCO", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.364, "stock": 9, "estadoStock": "STOCK BAJO", "precioSistema": 25.0, "diferencia": 5.836, "imptoRenta": 3.276, "precioOrigUSD": 5.2, "costoUnit": 19.164, "montoBrutoUSD": 46.8, "montoBrutoSoles": 163.8}, {"producto": "ACID PH5 FCO", "contenido": "250 ML", "flete": 0.6, "rentaProd": 0.21, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 16.0, "diferencia": 4.69, "imptoRenta": 0.21, "precioOrigUSD": 3.0, "costoUnit": 11.31, "montoBrutoUSD": 3, "montoBrutoSoles": 10.5}]}, {"name": "POINT ANDINA S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 125098.645, "totalDeducciones": 2501.9729, "utilidadNeta": 122596.6721}, "products": [{"producto": "CACIQUE X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.8253, "stock": 134.0, "estadoStock": "OPTIMO", "precioSistema": 50.0, "diferencia": -7.3097, "imptoRenta": 110.5902, "precioOrigUSD": 11.79, "costoUnit": 42.6903, "montoBrutoUSD": 1579.86, "montoBrutoSoles": 5529.51}, {"producto": "DECISIVO 90PS X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0.07, "stock": 5.0, "estadoStock": "STOCK BAJO", "precioSistema": 5.0, "diferencia": 0.83, "imptoRenta": 0.35, "precioOrigUSD": 1.0, "costoUnit": 4.17, "montoBrutoUSD": 5, "montoBrutoSoles": 17.5}, {"producto": "EN VIVO SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.2133, "stock": 128.0, "estadoStock": "OPTIMO", "precioSistema": 220.0, "diferencia": 4.5217, "imptoRenta": 539.3024, "precioOrigUSD": 60.19, "costoUnit": 215.4783, "montoBrutoUSD": 7704.32, "montoBrutoSoles": 26965.12}, {"producto": "FUNDAMENTAL 73WP X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0, "stock": 12, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "MILAGRO X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0, "stock": 2, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ORIOL 400 EC X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.4788, "stock": 176.0, "estadoStock": "OPTIMO", "precioSistema": 33.0, "diferencia": 7.9812, "imptoRenta": 84.2688, "precioOrigUSD": 6.84, "costoUnit": 25.0188, "montoBrutoUSD": 1203.84, "montoBrutoSoles": 4213.44}, {"producto": "RESUELTO 48SL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.2646, "stock": 3822.0, "estadoStock": "OPTIMO", "precioSistema": 18.0, "diferencia": 3.9054, "imptoRenta": 1011.3012, "precioOrigUSD": 3.78, "costoUnit": 14.0946, "montoBrutoUSD": 14447.16, "montoBrutoSoles": 50565.06}, {"producto": "SUSTENTO 80 X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0, "stock": 1, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SUSTENTO CA-B X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 4, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "TRIBUNAL 500WG X 100GR", "contenido": "100 g", "flete": 0.6, "rentaProd": 0, "stock": 29.0, "estadoStock": "OPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "VESPA X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0, "stock": 8, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "VIBREL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 5.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "BLAST X 1LT", "contenido": "1 litro ", "flete": 0.6, "rentaProd": 0.7028, "stock": 75.0, "estadoStock": "OPTIMO", "precioSistema": 46.0, "diferencia": 9.5572, "imptoRenta": 52.71, "precioOrigUSD": 10.04, "costoUnit": 36.4428, "montoBrutoUSD": 753, "montoBrutoSoles": 2635.5}, {"producto": "HELIOS 76 PM X 1 K", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0.7021, "stock": 463.0, "estadoStock": "OPTIMO", "precioSistema": 43.0, "diferencia": 6.5929, "imptoRenta": 325.0723, "precioOrigUSD": 10.03, "costoUnit": 36.4071, "montoBrutoUSD": 4643.89, "montoBrutoSoles": 16253.615}, {"producto": "TEMIBLE 48SL X 1LT", "contenido": "1 litro ", "flete": 0.6, "rentaProd": 0.2646, "stock": 1430.0, "estadoStock": "OPTIMO", "precioSistema": 20.0, "diferencia": 5.9054, "imptoRenta": 378.378, "precioOrigUSD": 3.78, "costoUnit": 14.0946, "montoBrutoUSD": 5405.4, "montoBrutoSoles": 18918.9}, {"producto": "FERTIPHOS PLUS NPK GRAN.X 50KG", "contenido": "50 kg", "flete": 0.6, "rentaProd": 0, "stock": 377.0, "estadoStock": "OPTIMO", "precioSistema": 96.0, "diferencia": 0.0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}]}, {"name": "TQC S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 23663.675, "totalDeducciones": 473.2735, "utilidadNeta": 23190.4015}, "products": [{"producto": "AMISTAR TOP X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.6256, "stock": 12, "estadoStock": "STOCK BAJO", "precioSistema": 240.0, "diferencia": -3.4944, "imptoRenta": 55.5072, "precioOrigUSD": 66.08, "costoUnit": 236.5056, "montoBrutoUSD": 792.96, "montoBrutoSoles": 2775.36}, {"producto": "BIOZYME TF X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 2.1063, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 115.0, "diferencia": 6.9787, "imptoRenta": 2.1063, "precioOrigUSD": 30.09, "costoUnit": 108.0213, "montoBrutoUSD": 30.09, "montoBrutoSoles": 105.315}, {"producto": "BENPROX 250SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 106.0, "estadoStock": "OPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "DEEPER X 1KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "MADUREX X 2KG", "contenido": "2 kg", "flete": 0.6, "rentaProd": 0, "stock": 26, "estadoStock": "OPTIMO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "INCIPIO X LT ", "contenido": "1 litro", "flete": 0.6, "rentaProd": 16.2309, "stock": 14.0, "estadoStock": "STOCK BAJO", "precioSistema": 838.0, "diferencia": 9.6241, "imptoRenta": 227.2326, "precioOrigUSD": 231.87, "costoUnit": 828.3759, "montoBrutoUSD": 3246.18, "montoBrutoSoles": 11361.63}, {"producto": "INCIPIO X 250ML", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.4191, "stock": 11.0, "estadoStock": "STOCK BAJO", "precioSistema": 235.0, "diferencia": 9.0259, "imptoRenta": 48.6101, "precioOrigUSD": 63.13, "costoUnit": 225.9741, "montoBrutoUSD": 694.43, "montoBrutoSoles": 2430.505}, {"producto": "MERTECT X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 6.0711, "stock": 2.0, "estadoStock": "STOCK BAJO", "precioSistema": 311.0, "diferencia": 0.7739, "imptoRenta": 12.1422, "precioOrigUSD": 86.73, "costoUnit": 310.2261, "montoBrutoUSD": 173.46, "montoBrutoSoles": 607.11}, {"producto": "RYZOGEN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 0.0, "diferencia": 0, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SOLVIGO X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 5.0764, "stock": 7.0, "estadoStock": "STOCK BAJO", "precioSistema": 292.0, "diferencia": 32.5036, "imptoRenta": 35.5348, "precioOrigUSD": 72.52, "costoUnit": 259.4964, "montoBrutoUSD": 507.64, "montoBrutoSoles": 1776.74}, {"producto": "SWITCH 62.5WG X 100GR", "contenido": "100 GR", "flete": 0.6, "rentaProd": 1.421, "stock": 10.0, "estadoStock": "STOCK BAJO", "precioSistema": 76.0, "diferencia": 2.929, "imptoRenta": 14.21, "precioOrigUSD": 20.3, "costoUnit": 73.071, "montoBrutoUSD": 203, "montoBrutoSoles": 710.5}, {"producto": "TOPAS X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.3897, "stock": 7, "estadoStock": "STOCK BAJO", "precioSistema": 270.0, "diferencia": 45.5253, "imptoRenta": 30.7279, "precioOrigUSD": 62.71, "costoUnit": 224.4747, "montoBrutoUSD": 438.97, "montoBrutoSoles": 1536.395}, {"producto": "VERTIMEC X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.5939, "stock": 20.0, "estadoStock": "OPTIMO", "precioSistema": 82.0, "diferencia": 0.1111, "imptoRenta": 31.878, "precioOrigUSD": 22.77, "costoUnit": 81.8889, "montoBrutoUSD": 455.4, "montoBrutoSoles": 1593.9}, {"producto": "PROCLAIN OPTI X 100GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.7448, "stock": 3.0, "estadoStock": "STOCK BAJO", "precioSistema": 18.0, "diferencia": -20.5848, "imptoRenta": 2.2344, "precioOrigUSD": 10.64, "costoUnit": 38.5848, "montoBrutoUSD": 31.92, "montoBrutoSoles": 111.72}, {"producto": "ACTARA 25WG X 100GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.595, "stock": 22.0, "estadoStock": "OPTIMO", "precioSistema": 36.0, "diferencia": 5.055, "imptoRenta": 13.09, "precioOrigUSD": 8.5, "costoUnit": 30.945, "montoBrutoUSD": 187, "montoBrutoSoles": 654.5}]}, {"name": "NEXXT SAC", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 64340.745, "totalDeducciones": 1286.8149, "utilidadNeta": 63053.9301}, "products": [{"producto": "PROCHLOMAX 450 EC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.9912, "stock": 102.0, "estadoStock": "OPTIMO", "precioSistema": 65.0, "diferencia": -13.8488, "imptoRenta": 101.1024, "precioOrigUSD": 14.16, "costoUnit": 51.1512, "montoBrutoUSD": 1444.32, "montoBrutoSoles": 5055.12}, {"producto": "FITOXAM 249 SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.8505, "stock": 95.0, "estadoStock": "OPTIMO", "precioSistema": 52.0, "diferencia": 8.0245, "imptoRenta": 80.7975, "precioOrigUSD": 12.15, "costoUnit": 43.9755, "montoBrutoUSD": 1154.25, "montoBrutoSoles": 4039.875}, {"producto": "FIPROL 200SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.3629, "stock": 176.0, "estadoStock": "OPTIMO", "precioSistema": 80.0, "diferencia": 9.8921, "imptoRenta": 239.8704, "precioOrigUSD": 19.47, "costoUnit": 70.1079, "montoBrutoUSD": 3426.72, "montoBrutoSoles": 11993.52}, {"producto": "CYPERINKA 100 EC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.4543, "stock": 98.0, "estadoStock": "OPTIMO", "precioSistema": 35.0, "diferencia": -11.2307, "imptoRenta": 44.5214, "precioOrigUSD": 6.49, "costoUnit": 23.7693, "montoBrutoUSD": 636.02, "montoBrutoSoles": 2226.07}, {"producto": "GOTICO PLUS X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.3216, "stock": 124.0, "estadoStock": "OPTIMO", "precioSistema": 78.0, "diferencia": 9.9984, "imptoRenta": 163.8784, "precioOrigUSD": 18.88, "costoUnit": 68.0016, "montoBrutoUSD": 2341.12, "montoBrutoSoles": 8193.92}, {"producto": "FIPROL 200SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 176.0, "estadoStock": "OPTIMO", "precioSistema": 80.0, "diferencia": 80, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "TEBUMAX 250 EW X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.791, "stock": 95.0, "estadoStock": "OPTIMO", "precioSistema": 48.0, "diferencia": 7.059, "imptoRenta": 75.145, "precioOrigUSD": 11.3, "costoUnit": 40.941, "montoBrutoUSD": 1073.5, "montoBrutoSoles": 3757.25}, {"producto": "XENTHO 25 WG X 0.1KG", "contenido": "1 KG", "flete": 0.6, "rentaProd": 0.0994, "stock": 339.0, "estadoStock": "OPTIMO", "precioSistema": 12.0, "diferencia": 6.3306, "imptoRenta": 33.6966, "precioOrigUSD": 1.42, "costoUnit": 5.6694, "montoBrutoUSD": 481.38, "montoBrutoSoles": 1684.83}, {"producto": "SPIROMAX 224 SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 3.9648, "stock": 84.0, "estadoStock": "OPTIMO", "precioSistema": 215.0, "diferencia": 12.1952, "imptoRenta": 333.0432, "precioOrigUSD": 56.64, "costoUnit": 202.8048, "montoBrutoUSD": 4757.76, "montoBrutoSoles": 16652.16}, {"producto": "GADGET 120 SC X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 4.13, "stock": 52, "estadoStock": "OPTIMO", "precioSistema": 220.0, "diferencia": 8.77, "imptoRenta": 214.76, "precioOrigUSD": 59.0, "costoUnit": 211.23, "montoBrutoUSD": 3068, "montoBrutoSoles": 10738}]}, {"name": "MONTANA S.A", "schema": "USD", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 58119.5188, "totalDeducciones": 1162.390376, "utilidadNeta": 56957.12842}, "products": [{"producto": "BOLERO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 3.717, "stock": 16.0, "estadoStock": "OPTIMO", "precioSistema": 180.0, "diferencia": 10.167, "imptoRenta": 59.472, "precioOrigUSD": 53.1, "costoUnit": 190.167, "montoBrutoUSD": 849.6, "montoBrutoSoles": 2973.6}, {"producto": "AQUAPRO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.413, "stock": 284.0, "estadoStock": "OPTIMO", "precioSistema": 25.0, "diferencia": 3.337, "imptoRenta": 117.292, "precioOrigUSD": 5.9, "costoUnit": 21.663, "montoBrutoUSD": 1675.6, "montoBrutoSoles": 5864.6}, {"producto": "ARMADOR X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 3.904502, "stock": 38.0, "estadoStock": "OPTIMO", "precioSistema": 197.0, "diferencia": -2.729602, "imptoRenta": 148.371076, "precioOrigUSD": 55.7786, "costoUnit": 199.729602, "montoBrutoUSD": 2119.5868, "montoBrutoSoles": 7418.5538}, {"producto": "ARMADOR X 200ML", "contenido": "200 ml", "flete": 0.6, "rentaProd": 0, "stock": 9.0, "estadoStock": "STOCK BAJO", "precioSistema": 60.0, "diferencia": -59.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "BARRACUDA X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 90.0, "diferencia": 89.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "BOMBAI X 125GR", "contenido": "125 gr", "flete": 0.6, "rentaProd": 0.8673, "stock": 175.0, "estadoStock": "OPTIMO", "precioSistema": 59.0, "diferencia": 14.1677, "imptoRenta": 151.7775, "precioOrigUSD": 12.39, "costoUnit": 44.8323, "montoBrutoUSD": 2168.25, "montoBrutoSoles": 7588.875}, {"producto": "CAL 40 X 1LT.", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.5782, "stock": 211.0, "estadoStock": "OPTIMO", "precioSistema": 32.0, "diferencia": 1.9118, "imptoRenta": 122.0002, "precioOrigUSD": 8.26, "costoUnit": 30.0882, "montoBrutoUSD": 1742.86, "montoBrutoSoles": 6100.01}, {"producto": "CIPERSOL (B) FRASCO 1 LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 36.0, "diferencia": 35.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CLOFEDYN X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 30.0, "estadoStock": "OPTIMO", "precioSistema": 170.0, "diferencia": 169.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CONVICTUS X 100GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 30.0, "diferencia": 29.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "COPPER MAX X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 30.0, "estadoStock": "OPTIMO", "precioSistema": 70.0, "diferencia": -66.085, "imptoRenta": 81.291, "precioOrigUSD": 38.71, "costoUnit": 136.085, "montoBrutoUSD": 1161.3, "montoBrutoSoles": 4064.55}, {"producto": "CORSARIO X 750GR", "contenido": "750 gr", "flete": 0.6, "rentaProd": 2.7097, "stock": 56.0, "estadoStock": "OPTIMO", "precioSistema": 73.0, "diferencia": 29.2303, "imptoRenta": 45.3152, "precioOrigUSD": 11.56, "costoUnit": 43.7697, "montoBrutoUSD": 647.36, "montoBrutoSoles": 2265.76}, {"producto": "CRISURON X 60 GR", "contenido": "60 gr", "flete": 0.6, "rentaProd": 1.652, "stock": 243.0, "estadoStock": "OPTIMO", "precioSistema": 88.0, "diferencia": 3.148, "imptoRenta": 0, "precioOrigUSD": 23.6, "costoUnit": 84.852, "montoBrutoUSD": 5734.8, "montoBrutoSoles": 0}, {"producto": "ENDURA FRASCO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 210.0, "diferencia": 209.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ESTOICO X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 70.0, "diferencia": 69.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FOLAMIN BOLSA X 1 KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0, "stock": 2.0, "estadoStock": "STOCK BAJO", "precioSistema": 120.0, "diferencia": 119.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "GENTROL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.1977, "stock": 98.0, "estadoStock": "OPTIMO", "precioSistema": 65.0, "diferencia": 3.3173, "imptoRenta": 117.3746, "precioOrigUSD": 17.11, "costoUnit": 61.6827, "montoBrutoUSD": 1676.78, "montoBrutoSoles": 5868.73}, {"producto": "HIBRIDO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 16.0, "estadoStock": "OPTIMO", "precioSistema": 75.0, "diferencia": 74.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "INCENTIVE X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 3.0, "estadoStock": "STOCK BAJO", "precioSistema": 98.0, "diferencia": 97.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "INVENTO X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 650.0, "diferencia": 649.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "INVENTO X 250ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 200.0, "diferencia": 199.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "MARCAFOL X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 20.0, "estadoStock": "OPTIMO", "precioSistema": 35.0, "diferencia": 34.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "MEGAFOL FRASCO X 1L", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 4.0, "estadoStock": "STOCK BAJO", "precioSistema": 48.0, "diferencia": 47.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "PACZOL X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 118.0, "diferencia": 117.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "PERDIGON X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 5.0, "estadoStock": "STOCK BAJO", "precioSistema": 125.0, "diferencia": 124.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "PIRATE X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 60.0, "diferencia": 59.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "PROXY X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 1.4042, "stock": 99.0, "estadoStock": "OPTIMO", "precioSistema": 75.0, "diferencia": 2.7858, "imptoRenta": 139.0158, "precioOrigUSD": 20.06, "costoUnit": 72.2142, "montoBrutoUSD": 1985.94, "montoBrutoSoles": 6950.79}, {"producto": "PROXY X 250 ML", "contenido": "250 ml", "flete": 0.6, "rentaProd": 0.413, "stock": 5.0, "estadoStock": "STOCK BAJO", "precioSistema": 24.0, "diferencia": 2.337, "imptoRenta": 2.065, "precioOrigUSD": 5.9, "costoUnit": 21.663, "montoBrutoUSD": 29.5, "montoBrutoSoles": 103.25}, {"producto": "PUNCHER X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.5782, "stock": 263.0, "estadoStock": "OPTIMO", "precioSistema": 32.0, "diferencia": 1.9118, "imptoRenta": 152.0666, "precioOrigUSD": 8.26, "costoUnit": 30.0882, "montoBrutoUSD": 2172.38, "montoBrutoSoles": 7603.33}, {"producto": "RATADOR PELET X 25GR", "contenido": "25 gr", "flete": 0.6, "rentaProd": 0, "stock": 380.0, "estadoStock": "OPTIMO", "precioSistema": 1.0, "diferencia": 0.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "RUDO X KG", "contenido": "1 kg", "flete": 0.6, "rentaProd": 0, "stock": 6.0, "estadoStock": "STOCK BAJO", "precioSistema": 50.0, "diferencia": 49.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SANIQUAT X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 25.0, "diferencia": 24.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "SKIRLA X 100 GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0, "stock": 1779.0, "estadoStock": "OPTIMO", "precioSistema": 9.0, "diferencia": 8.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "TRICUR X 1LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0.0826, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 1.0, "diferencia": -3.8126, "imptoRenta": 0.0826, "precioOrigUSD": 1.18, "costoUnit": 4.8126, "montoBrutoUSD": 1.18, "montoBrutoSoles": 4.13}, {"producto": "VIVORAL X 100GR", "contenido": "100 gr", "flete": 0.6, "rentaProd": 0.2478, "stock": 106.0, "estadoStock": "OPTIMO", "precioSistema": 18.0, "diferencia": 4.7622, "imptoRenta": 26.2668, "precioOrigUSD": 3.54, "costoUnit": 13.2378, "montoBrutoUSD": 375.24, "montoBrutoSoles": 1313.34}, {"producto": "YIELD ON X LT", "contenido": "1 litro", "flete": 0.6, "rentaProd": 0, "stock": 2.0, "estadoStock": "STOCK BAJO", "precioSistema": 1.0, "diferencia": 0.4, "imptoRenta": 0, "precioOrigUSD": 0.0, "costoUnit": 0.6, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": " ", "contenido": "MONTO SOLES", "flete": null, "rentaProd": null, "stock": null, "estadoStock": null, "precioSistema": null, "diferencia": null, "imptoRenta": null, "precioOrigUSD": "CATEGORÍA", "costoUnit": null, "montoBrutoUSD": null, "montoBrutoSoles": null}]}, {"name": "CROP BUSSINES", "schema": "TON", "meta": {"fechaReporte": "2026-07-09T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 0, "totalDeducciones": 0, "utilidadNeta": 0}, "products": [{"producto": "FOSF. MONOAMONICO X 25KG - CROP BUSINESS", "contenido": "25 kg", "flete": 5.0, "rentaProd": null, "stock": 8.0, "estadoStock": "STOCK BAJO", "precioSistema": 180.0, "diferencia": -165, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 40, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}]}, {"name": "INTI", "schema": "TON", "meta": {"fechaReporte": "2026-07-09T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 0, "totalDeducciones": 0, "utilidadNeta": 0}, "products": [{"producto": "UREA PERLADA PARA USO AGRICOLA X 50 KG - INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 131.0, "estadoStock": "OPTIMO", "precioSistema": 140.0, "diferencia": -125, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "ACIDO FOSFORICO EN BIDONES X 35KG - INTI", "contenido": "35 kg", "flete": 5.0, "rentaProd": null, "stock": 2.0, "estadoStock": "STOCK BAJO", "precioSistema": 247.0, "diferencia": -232, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 28.57142857, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CLORURO DE POTASIO GRANULADO ROJO X 50KG -INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 141.0, "estadoStock": "OPTIMO", "precioSistema": 98.0, "diferencia": -83, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FERTILIZANTE COMPUESTO 20-20-20 X 50 KGS – INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 104.0, "estadoStock": "OPTIMO", "precioSistema": 145.0, "diferencia": -130, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FERTILIZANTE COMPUESTO NPK 12-12-17 X 50KGS-COMPLETO INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 39.0, "estadoStock": "OPTIMO", "precioSistema": 190.0, "diferencia": -175, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FERTILIZANTE COMPUESTO NPK SULFO POTASIO MAG X 50KG - INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 245.0, "estadoStock": "OPTIMO", "precioSistema": 130.0, "diferencia": -115, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FOSFATO DIAMONICO X 50KG - INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 330.0, "estadoStock": "OPTIMO", "precioSistema": 168.0, "diferencia": -153, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FOSFATO MONOAMONICO GRANULADO 10-45-0 X 50KGS - INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 40.0, "estadoStock": "OPTIMO", "precioSistema": 170.0, "diferencia": -155, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "NITRATO DE AMONIO ESTABILIZADO PARA USO AGRICOLA X 50 KG - INTI", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 336.0, "estadoStock": "OPTIMO", "precioSistema": 143.0, "diferencia": -128, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}]}, {"name": "MOLINOS & CIASA", "schema": "TON", "meta": {"fechaReporte": "2026-07-10T00:00:00", "tcComercial": 3.5, "tcSunat": 3.4, "impuestoRenta": 0.02, "ingresoBruto": 133257.25, "totalDeducciones": 2665.145, "utilidadNeta": 130592.105}, "products": [{"producto": "UREA AGRICOLA FERTILIZANTE (BL.50 KG) - MOLINOS&CIASA", "contenido": "50kg", "flete": 5.0, "rentaProd": null, "stock": 402.0, "estadoStock": "OPTIMO", "precioSistema": 141.0, "diferencia": -1.75, "imptoRenta": 998.97, "precioTonUSD": 710.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 139.25, "montoBrutoUSD": 14271, "montoBrutoSoles": 49948.5}, {"producto": "UREA AGRICOLA FERTILIZANTE (BL.50 KG) - MOLINOS&CIASA", "contenido": "50kg", "flete": 5.0, "rentaProd": null, "stock": 97.0, "estadoStock": "OPTIMO", "precioSistema": 141.0, "diferencia": -3.5, "imptoRenta": 237.65, "precioTonUSD": 700.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 137.5, "montoBrutoUSD": 3395, "montoBrutoSoles": 11882.5}, {"producto": "ACIDOFOS FORICOGR.TECNICO 601 BID. 50 KG.- INNOPHOS - MOLINOS & CIA", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 7.0, "estadoStock": "STOCK BAJO", "precioSistema": 230.0, "diferencia": -215, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "CLORURO DE POTASIO GRANULAR(BL.50KG) - MOLINOS&CIASA", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 139.0, "estadoStock": "OPTIMO", "precioSistema": 100.0, "diferencia": -85, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "FOSF.DI AMONICO18-46-0(BL.50 KG) - MOLINOS&CIASA", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 381.0, "estadoStock": "OPTIMO", "precioSistema": 172.0, "diferencia": 5.75, "imptoRenta": 1240.155, "precioTonUSD": 930.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 177.75, "montoBrutoUSD": 17716.5, "montoBrutoSoles": 62007.75}, {"producto": "FOSF.MONOAMONICO GR.11-52-00(BL.50 KG) - MOLINOS&CIASA, 31.05.40.00.00", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 1.0, "estadoStock": "STOCK BAJO", "precioSistema": 160.0, "diferencia": -145, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "KIESERITA-SULF.DE MAGNESIO MONOHIDRATADOGR(BL.50KG)-MOLINOS,", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 138.0, "estadoStock": "OPTIMO", "precioSistema": 80.0, "diferencia": 3.25, "imptoRenta": 188.37, "precioTonUSD": 390.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 83.25, "montoBrutoUSD": 2691, "montoBrutoSoles": 9418.5}, {"producto": "NITRATO DE AMONIOESTAB. USOAGRICOLA (BL50KG) -MOLINOS&CIA", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 751.0, "estadoStock": "OPTIMO", "precioSistema": 145.0, "diferencia": -130, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "NPK 20-20-20 X BL.50KG MOLIMAX (MOLINOS & CIA )", "contenido": "50 kg", "flete": 5.0, "rentaProd": null, "stock": 148.0, "estadoStock": "OPTIMO", "precioSistema": 140.0, "diferencia": -125, "imptoRenta": 0, "precioTonUSD": 0.0, "bolsasTon": 20, "impuestoBolsa": 10.0, "costoUnit": 15, "montoBrutoUSD": 0, "montoBrutoSoles": 0}, {"producto": "  ", "contenido": null, "flete": null, "rentaProd": null, "stock": 2064, "estadoStock": null, "precioSistema": null, "diferencia": null, "imptoRenta": 2665.145, "precioTonUSD": null, "bolsasTon": null, "impuestoBolsa": null, "costoUnit": null, "montoBrutoUSD": 38073.5, "montoBrutoSoles": 133257.25}]}], "stockBajoResumen": [{"empresa": "INTEROC S.A", "cantidad": 1}, {"empresa": "FARMEX S.A", "cantidad": 8}, {"empresa": "TQC S.A", "cantidad": 11}, {"empresa": "ABC MAX S.A.C.", "cantidad": 8}, {"empresa": "ADAMA AGRICULTURE S.A", "cantidad": 9}, {"empresa": "ARIS INDUSTRIAL S.A", "cantidad": 4}, {"empresa": "ITAGRO S.A", "cantidad": 1}, {"empresa": "COMERCIAL ANDINA INDUSTRIAL S.A", "cantidad": 11}, {"empresa": "SERFI S.A", "cantidad": 2}, {"empresa": "POINT ANDINA S.A", "cantidad": 7}, {"empresa": "NEOAGRUM S.A.C.", "cantidad": 1}, {"empresa": "FARMAGRO S.A", "cantidad": 4}, {"empresa": "SILVESTRE PERU S.A.C", "cantidad": 7}, {"empresa": "NEXXT SAC", "cantidad": 0}, {"empresa": "CROP BUSSINES", "cantidad": 1}, {"empresa": "INTI", "cantidad": 1}, {"empresa": "MOLINOS & CIASA", "cantidad": 2}, {"empresa": "MONTANA S.A", "cantidad": 19}], "stockBajoTotal": 78, "cambioDolar": {"tcComercial": 3.5, "tcSunat": 3.4}};
+
+</script>
+<script>
+/* ==========================================================================
+   AGROMIN — Sistema de Control de Costos e Inventario
+   ========================================================================== */
+
+const fmtS = (n) => n === null || n === undefined || isNaN(n) ? '—' :
+  'S/ ' + Number(n).toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtUSD = (n) => n === null || n === undefined || isNaN(n) ? '—' :
+  '$ ' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtN = (n, d=2) => n === null || n === undefined || isNaN(n) ? '—' :
+  Number(n).toLocaleString('es-PE', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtInt = (n) => n === null || n === undefined || isNaN(n) ? '—' : Math.round(n).toLocaleString('es-PE');
+
+function esc(s){
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const STORAGE_KEY = 'agromin_state_v1';
+const BASE_DATA = AGROMIN_DATA;
+
+function cloneData(data){ return JSON.parse(JSON.stringify(data)); }
+function ensureProductIdentity(product, supplierName, index){
+  if (!product._uid) product._uid = `${supplierName}-${index}-${Math.random().toString(36).slice(2,8)}`;
+  if (product.isActive === undefined) product.isActive = true;
+  if (product.deletedAt === undefined) product.deletedAt = null;
+  return product;
+}
+function normalizeData(data){
+  const normalized = cloneData(data || BASE_DATA);
+  if (!normalized.cambioDolar) normalized.cambioDolar = cloneData(BASE_DATA.cambioDolar);
+  normalized.suppliers = (normalized.suppliers || []).map((s, idx) => {
+    const baseSupplier = BASE_DATA.suppliers?.[idx] || {};
+    const supplier = { ...cloneData(baseSupplier), ...s };
+    supplier.products = Array.isArray(supplier.products) ? supplier.products : [];
+    supplier.inactiveProducts = Array.isArray(supplier.inactiveProducts) ? supplier.inactiveProducts : [];
+    supplier.products = supplier.products.map((p, pIdx) => {
+      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
+      ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
+      prod.isActive = true;
+      prod.deletedAt = null;
+      prod.prevStock = prod.prevStock ?? (prod.stock || 0);
+      prod.lotes = Array.isArray(prod.lotes) ? prod.lotes : [];
+      return prod;
+    });
+    supplier.inactiveProducts = supplier.inactiveProducts.map((p, pIdx) => {
+      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
+      ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
+      prod.isActive = false;
+      if (!prod.deletedAt) prod.deletedAt = new Date().toISOString();
+      prod.prevStock = prod.prevStock ?? (prod.stock || 0);
+      prod.lotes = Array.isArray(prod.lotes) ? prod.lotes : [];
+      return prod;
+    });
+    supplier.meta = { ...(baseSupplier.meta || {}), ...(supplier.meta || {}) };
+    return supplier;
+  });
+  return normalized;
+}
+function cleanupLoadedSuppliers(normalized){
+  try{
+    const before = (normalized.suppliers || []).length;
+    normalized.suppliers = (normalized.suppliers || []).filter(s => {
+      const name = (s.name || '').toString();
+      const isPlaceholder = /^Nueva empresa\s*\d*$/i.test(name);
+      const hasProducts = Array.isArray(s.products) && s.products.length > 0;
+      return !(isPlaceholder && !hasProducts);
+    });
+    const after = (normalized.suppliers || []).length;
+    if (after < before){
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)); } catch(e){}
+    }
+  } catch(e){}
+  return normalized;
+}
+
+function loadPersistedData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return cleanupLoadedSuppliers(normalizeData(JSON.parse(raw)));
+  } catch (e) {}
+  return normalizeData(BASE_DATA);
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); } catch(e) {}
+}
+function showToast(icon, title, text=''){
+  Swal.fire({
+    toast: true,
+    position: 'top-end',
+    icon,
+    title,
+    text,
+    showConfirmButton: false,
+    timer: 1700,
+    timerProgressBar: true,
+    customClass: { popup: 'agromin-swal' }
+  });
+}
+
+let DATA = loadPersistedData();
+let SUPPLIERS = DATA.suppliers;
+// Remove supplier named 'Villafuerte' (if present) per user request
+try{
+  const idxVill = (DATA.suppliers||[]).findIndex(s => (s.name||'').toLowerCase().includes('villafuerte'));
+  if (idxVill !== -1){
+    DATA.suppliers.splice(idxVill, 1);
+    SUPPLIERS = DATA.suppliers;
+    saveState();
+  }
+}catch(e){}
+
+// Aggregate low-stock counts computed live from product data (source of truth for UI)
+function stockBajoCount(supplier){
+  return supplier.products.filter(p => (p.estadoStock||'').toUpperCase().includes('BAJO')).length;
+}
+
+/* ---------------------------------------------------------------------
+   MOTOR DE RECÁLCULO POR TIPO DE CAMBIO
+   Replica las fórmulas reales del Excel original:
+   - Esquema USD:  costoUnit = precioOrigUSD*TC + flete + rentaProd
+                   rentaProd = (precioOrigUSD*TC) * tasaImpuestoRenta
+                   montoBrutoUSD = precioOrigUSD * stock   (no depende del TC)
+                   montoBrutoSoles = montoBrutoUSD * TC
+                   imptoRenta = montoBrutoSoles * tasaImpuestoRenta
+   - Esquema TON:  precioUnitUSD = precioTonUSD / bolsasTon
+                   costoUnit = precioUnitUSD*TC + flete + impuestoBolsa
+                   montoBrutoUSD = precioUnitUSD * stock
+                   montoBrutoSoles = montoBrutoUSD * TC
+                   imptoRenta = montoBrutoSoles * tasaImpuestoRenta
+   - Esquema SOLES (ABC MAX): todo ya está en soles, el TC no afecta nada.
+   diferencia = precioSistema - costoUnit  (margen; positivo = gana, negativo = pierde)
+--------------------------------------------------------------------- */
+
+function recalcSupplierMeta(s){
+  const sumMontoBruto = s.products.reduce((a,p)=>a+(p.montoBrutoSoles||0), 0);
+  const sumImpto = s.products.reduce((a,p)=>a+(p.imptoRenta||0), 0);
+  const gastosTotal = loadGastos(s.name).reduce((a,g)=>a+(parseFloat(g.monto)||0), 0);
+  s.meta.ingresoBruto = sumMontoBruto;
+  s.meta.totalDeducciones = sumImpto + gastosTotal;
+  s.meta.utilidadNeta = s.meta.ingresoBruto - s.meta.totalDeducciones;
+  saveState();
+}
+
+/* Recalcula un único producto tras editarlo manualmente (mismas fórmulas del Excel) */
+function recalcSingleProduct(s, p){
+  const tc = s.meta.tcComercial;
+  const rate = (typeof s.meta.impuestoRenta === 'number') ? s.meta.impuestoRenta : 0.02;
+
+  if (s.schema === 'USD'){
+    const base = (p.precioOrigUSD||0) * tc;
+    p.rentaProd = base * rate;
+    p.costoUnit = base + (p.flete||0) + p.rentaProd;
+    p.montoBrutoUSD = (p.precioOrigUSD||0) * (p.stock||0);
+    p.montoBrutoSoles = p.montoBrutoUSD * tc;
+    p.imptoRenta = p.montoBrutoSoles * rate;
+  } else if (s.schema === 'TON'){
+    const unitUSD = p.bolsasTon ? (p.precioTonUSD||0) / p.bolsasTon : 0;
+    const base = unitUSD * tc;
+    p.costoUnit = base + (p.flete||0) + (p.impuestoBolsa||0);
+    p.montoBrutoUSD = unitUSD * (p.stock||0);
+    p.montoBrutoSoles = p.montoBrutoUSD * tc;
+    p.imptoRenta = p.montoBrutoSoles * rate;
+  } else { // SOLES
+    p.rentaProd = (p.precioCompra||0) * rate;
+    p.costoUnit = (p.precioCompra||0) + (p.flete||0) + p.rentaProd;
+    p.montoBrutoSoles = p.costoUnit * (p.stock||0);
+    p.imptoRenta = p.montoBrutoSoles * rate;
+  }
+  p.diferencia = (p.precioSistema||0) - p.costoUnit;
+  p.estadoStock = (p.stock||0) < 15 ? 'STOCK BAJO' : 'OPTIMO';
+}
+
+function recalcSupplier(s, tcComercial){
+  const rate = (typeof s.meta.impuestoRenta === 'number') ? s.meta.impuestoRenta : 0.02;
+
+  if (s.schema === 'USD'){
+    s.products.forEach(p => {
+      const base = (p.precioOrigUSD||0) * tcComercial;
+      p.rentaProd = base * rate;
+      p.costoUnit = base + (p.flete||0) + p.rentaProd;
+      p.montoBrutoUSD = (p.precioOrigUSD||0) * (p.stock||0);
+      p.montoBrutoSoles = p.montoBrutoUSD * tcComercial;
+      p.imptoRenta = p.montoBrutoSoles * rate;
+      p.diferencia = (p.precioSistema||0) - p.costoUnit;
+    });
+  } else if (s.schema === 'TON'){
+    s.products.forEach(p => {
+      const unitUSD = p.bolsasTon ? (p.precioTonUSD||0) / p.bolsasTon : 0;
+      const base = unitUSD * tcComercial;
+      p.costoUnit = base + (p.flete||0) + (p.impuestoBolsa||0);
+      p.montoBrutoUSD = unitUSD * (p.stock||0);
+      p.montoBrutoSoles = p.montoBrutoUSD * tcComercial;
+      p.imptoRenta = p.montoBrutoSoles * rate;
+      p.diferencia = (p.precioSistema||0) - p.costoUnit;
+    });
+  }
+  // Esquema SOLES: sin cambios, ya está en soles.
+
+  s.meta.tcComercial = tcComercial;
+  recalcSupplierMeta(s);
+}
+
+function recalcAll(tcComercial, tcSunat){
+  DATA.cambioDolar.tcComercial = tcComercial;
+  DATA.cambioDolar.tcSunat = tcSunat;
+  SUPPLIERS.forEach(s => recalcSupplier(s, tcComercial));
+  saveState();
+}
+
+// Recalcular una sola vez al iniciar, para que cualquier gasto guardado
+// previamente en este navegador ya quede reflejado en las utilidades.
+function initialRecalc(){
+  recalcAll(DATA.cambioDolar.tcComercial, DATA.cambioDolar.tcSunat);
+}
+
+function moveToInactive(s, product){
+  const idx = s.products.findIndex(p => (p._uid && product._uid) ? p._uid === product._uid : p === product);
+  if (idx < 0) return false;
+  const [removed] = s.products.splice(idx, 1);
+  removed.isActive = false;
+  removed.deletedAt = new Date().toISOString();
+  s.inactiveProducts = s.inactiveProducts || [];
+  s.inactiveProducts.push(removed);
+  recalcSupplierMeta(s);
+  saveState();
+  return true;
+}
+
+function restoreFromInactive(s, uid){
+  const idx = (s.inactiveProducts || []).findIndex(p => (p._uid || '') === uid);
+  if (idx < 0) return false;
+  const [removed] = s.inactiveProducts.splice(idx, 1);
+  removed.isActive = true;
+  removed.deletedAt = null;
+  s.products.push(removed);
+  recalcSupplierMeta(s);
+  saveState();
+  return true;
+}
+
+let chartInstances = {};
+function destroyCharts(){
+  Object.values(chartInstances).forEach(c => c && c.destroy());
+  chartInstances = {};
+}
+
+/* ---------------------------- NAV BUILD ---------------------------- */
+
+function buildNav(){
+  const nav = document.getElementById('nav');
+  const stockBajoTotal = SUPPLIERS.reduce((a,s)=>a+stockBajoCount(s),0);
+  const generalItems = [
+    {id:'dashboard', label:'Dashboard general', icon:'▣'},
+    {id:'stockbajo', label:'Alertas de stock', icon:'⚠', tag: stockBajoTotal},
+    {id:'cambio', label:'Tipo de cambio', icon:'$'},
+    {id:'new-supplier', label:'Nuevo proveedor', icon:'＋'},
+  ];
+  let html = '<div class="nav-section"><div class="nav-label">General</div>';
+  generalItems.forEach(it => {
+    html += navItemHTML(it.id, it.label, it.tag);
+  });
+  html += '</div>';
+
+  html += '<div class="nav-section"><div class="nav-label">Proveedores (' + SUPPLIERS.length + ')</div>';
+  SUPPLIERS.forEach((s,i) => {
+    const bajo = stockBajoCount(s);
+    html += navItemHTML('sup:'+i, s.name, bajo);
+  });
+  html += '</div>';
+
+  nav.innerHTML = html;
+  nav.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => {
+      navigate(el.dataset.route);
+      if (window.innerWidth <= 760) document.getElementById('sidebar').classList.remove('open');
+    });
+  });
+}
+
+function navItemHTML(route, label, tag){
+  let tagHTML = '';
+  if (tag !== undefined && tag !== null){
+    tagHTML = `<span class="tag ${tag === 0 ? 'zero':''}">${tag}</span>`;
+  }
+  return `<div class="nav-item" data-route="${route}"><span>${esc(label)}</span>${tagHTML}</div>`;
+}
+
+function setActiveNav(route){
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.route === route);
+  });
+}
+
+/* ---------------------------- TOPBAR ---------------------------- */
+
+function buildTopbar(){
+  const tc = SUPPLIERS[0]?.meta || {};
+  document.getElementById('ticker').innerHTML = `
+    <span>TC COMERCIAL <b>${fmtN(DATA.cambioDolar.tcComercial, 2)}</b></span>
+    <span class="sep"></span>
+    <span>TC SUNAT <b>${fmtN(DATA.cambioDolar.tcSunat, 2)}</b></span>
+    <span class="sep"></span>
+    <span>PROVEEDORES <b>${SUPPLIERS.length}</b></span>
+    <span class="sep"></span>
+    <span>PRODUCTOS <b>${SUPPLIERS.reduce((a,s)=>a+s.products.length,0)}</b></span>
+  `;
+  // (Removed quick export/import actions per user request)
+  document.getElementById('footer-date').textContent = (SUPPLIERS[0]?.meta.fechaReporte || '').slice(0,10) || '—';
+  document.getElementById('footer-tc').textContent = fmtN(DATA.cambioDolar.tcComercial,2);
+}
+
+// Export/Import functions removed per user request.
+
+
+/* ---------------------------- ROUTER ---------------------------- */
+
+function navigate(route){
+  window.location.hash = route;
+}
+window.addEventListener('hashchange', () => render());
+
+function render(){
+  const route = (window.location.hash || '#dashboard').slice(1);
+  const content = document.getElementById('content');
+
+  if (route.startsWith('search:')){
+    destroyCharts();
+    setActiveNav('__none__');
+    content.innerHTML = viewGlobalSearch(decodeURIComponent(route.split(':')[1]));
+    return;
+  }
+
+  setActiveNav(route);
+  destroyCharts();
+  if (route === 'dashboard') content.innerHTML = viewDashboard();
+  else if (route === 'stockbajo') content.innerHTML = viewStockBajo();
+  else if (route === 'cambio') content.innerHTML = viewCambio();
+  else if (route === 'new-supplier'){
+    content.innerHTML = viewNewSupplier();
+    attachNewSupplierForm();
+    return;
+  } else if (route.startsWith('sup-lotes:')) {
+    const parts = route.split(':');
+    const idx = parseInt(parts[1], 10);
+    const pi = parseInt(parts[2], 10);
+    content.innerHTML = viewProductLots(SUPPLIERS[idx], idx, pi);
+    attachProductLotsBehavior(SUPPLIERS[idx], idx, pi);
+    return;
+  } else if (route.startsWith('sup-inactivos:')) {
+    const idx = parseInt(route.split(':')[1], 10);
+    content.innerHTML = viewInactiveSupplier(SUPPLIERS[idx], idx);
+    attachInactiveSupplierBehavior(idx);
+    return;
+  } else if (route.startsWith('sup:')) {
+    const idx = parseInt(route.split(':')[1], 10);
+    content.innerHTML = viewSupplier(SUPPLIERS[idx], idx);
+    attachSupplierBehavior(idx);
+    attachSupplierCharts(SUPPLIERS[idx]);
+    attachGastosPanel(SUPPLIERS[idx]);
+    return;
+  } else {
+    content.innerHTML = viewDashboard();
+  }
+  if (route === 'dashboard') attachDashboardCharts();
+  if (route === 'cambio') { attachCambioUpdate(); attachCambioCalc(); }
+  if (route === 'stockbajo') { attachStockBajoChart(); attachStockBajoBehavior(); }
+}
+
+/* ---------------------------- VIEW: DASHBOARD ---------------------------- */
+
+function viewDashboard(){
+  const totalIngreso = SUPPLIERS.reduce((a,s)=>a+(s.meta.ingresoBruto||0),0);
+  const totalUtilidad = SUPPLIERS.reduce((a,s)=>a+(s.meta.utilidadNeta||0),0);
+  const totalImpto = SUPPLIERS.reduce((a,s)=>a+(s.meta.totalDeducciones||0),0);
+  const totalProductos = SUPPLIERS.reduce((a,s)=>a+s.products.length,0);
+  const totalStockBajo = SUPPLIERS.reduce((a,s)=>a+stockBajoCount(s),0);
+  const totalOptimo = totalProductos - totalStockBajo;
+
+  const ranked = [...SUPPLIERS].sort((a,b)=>(b.meta.utilidadNeta||0)-(a.meta.utilidadNeta||0));
+
+  let rows = ranked.map((s,i) => {
+    const bajo = stockBajoCount(s);
+    return `<tr>
+      <td class="num">${i+1}</td>
+      <td class="prod-name"><a href="#sup:${SUPPLIERS.indexOf(s)}">${esc(s.name)}</a></td>
+      <td class="num">${fmtS(s.meta.ingresoBruto)}</td>
+      <td class="num">${fmtS(s.meta.totalDeducciones)}</td>
+      <td class="num" style="color:var(--lime)">${fmtS(s.meta.utilidadNeta)}</td>
+      <td class="num">${s.products.length}</td>
+      <td class="num" style="color:${bajo>0?'var(--amber)':'var(--text-faint)'}">${bajo}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Vista general · Multimoneda</div>
+      <div class="view-title">Dashboard estadístico</div>
+      <div class="view-desc">Consolidado de utilidad neta, ingresos y estado de inventario de las ${SUPPLIERS.length} empresas proveedoras registradas en el sistema.</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Ingreso bruto total</div>
+        <div class="kpi-value">${fmtS(totalIngreso)}</div>
+        <div class="kpi-sub">Suma de las ${SUPPLIERS.length} empresas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Utilidad neta total</div>
+        <div class="kpi-value lime">${fmtS(totalUtilidad)}</div>
+        <div class="kpi-sub">Después de impuesto a la renta</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Impuesto renta acumulado</div>
+        <div class="kpi-value amber">${fmtS(totalImpto)}</div>
+        <div class="kpi-sub">Deducciones y gastos totales</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="kpi-label">Productos en catálogo</div>
+        <div class="kpi-value">${fmtInt(totalProductos)}</div>
+        <div class="kpi-sub">${totalOptimo} óptimo · ${totalStockBajo} stock bajo</div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="panel">
+        <div class="panel-title">Utilidad neta por empresa <span class="hint">S/.</span></div>
+        <div class="chart-wrap"><canvas id="chartUtilidad"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Estado del inventario <span class="hint">todas las empresas</span></div>
+        <div class="chart-wrap"><canvas id="chartStockPie"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Ranking de empresas por utilidad neta</div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>#</th><th>Empresa</th><th class="num">Ingreso bruto</th>
+            <th class="num">Deducciones</th><th class="num">Utilidad neta</th>
+            <th class="num">Productos</th><th class="num">Stock bajo</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function attachDashboardCharts(){
+  const ranked = [...SUPPLIERS].sort((a,b)=>(b.meta.utilidadNeta||0)-(a.meta.utilidadNeta||0));
+  const ctx1 = document.getElementById('chartUtilidad');
+  chartInstances.utilidad = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: ranked.map(s=>s.name.replace(' S.A.C.','').replace(' S.A','').replace(' SAC','')),
+      datasets: [{
+        data: ranked.map(s=>s.meta.utilidadNeta||0),
+        backgroundColor: 'rgba(60,122,46,0.5)',
+        borderColor: '#3c7a2e',
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: {display:false},
+        tooltip: { callbacks: { label: (c) => fmtS(c.parsed.x) } } },
+      scales: {
+        x: { ticks: { color: '#56695a', font:{family:'IBM Plex Mono', size:10} }, grid:{ color:'rgba(28,42,31,0.08)' } },
+        y: { ticks: { color: '#1c2a1f', font:{family:'IBM Plex Mono', size:10.5} }, grid:{ display:false } }
+      }
+    }
+  });
+
+  let optimo=0, bajo=0, otro=0;
+  SUPPLIERS.forEach(s => s.products.forEach(p => {
+    const e = (p.estadoStock||'').toUpperCase();
+    if (e.includes('BAJO')) bajo++;
+    else if (e.includes('OPTIM') || e.includes('ÓPTIM')) optimo++;
+    else otro++;
+  }));
+  const ctx2 = document.getElementById('chartStockPie');
+  chartInstances.stock = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: ['Óptimo','Stock bajo','Otro / S.P.'],
+      datasets: [{
+        data: [optimo, bajo, otro],
+        backgroundColor: ['#3c7a2e', '#b8761e', '#276e6e'],
+        borderColor: '#ffffff',
+        borderWidth: 3,
+      }]
+    },
+    options: {
+      plugins: { legend: { position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } },
+      cutout: '62%'
+    }
+  });
+}
+
+/* ---------------------------- VIEW: STOCK BAJO ---------------------------- */
+
+function viewStockBajo(){
+  let allLow = [];
+  SUPPLIERS.forEach((s,idx) => {
+    s.products.forEach(p => {
+      if ((p.estadoStock||'').toUpperCase().includes('BAJO')){
+        allLow.push({...p, empresa: s.name, supIdx: idx});
+      }
+    });
+  });
+
+  const byEmpresaRows = [...SUPPLIERS]
+    .map(s => ({name: s.name, count: stockBajoCount(s), idx: SUPPLIERS.indexOf(s)}))
+    .sort((a,b)=>b.count-a.count)
+    .map(r => `<tr>
+      <td class="prod-name"><a href="#sup:${r.idx}">${esc(r.name)}</a></td>
+      <td class="num" style="color:${r.count>0?'var(--amber)':'var(--text-faint)'}">${r.count}</td>
+    </tr>`).join('');
+
+  const detailRows = allLow.map(p => `
+    <tr>
+      <td class="prod-name">${esc(p.producto)}</td>
+      <td><a href="#sup:${p.supIdx}">${esc(p.empresa)}</a></td>
+      <td>${esc(p.contenido||'—')}</td>
+      <td class="num">${fmtN(p.stock,0)}</td>
+      <td class="num">${fmtS(p.precioSistema)}</td>
+      <td class="num neg">${fmtN(p.diferencia,3)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="view-header">
+      <div class="eyebrow">⚠ Alertas activas</div>
+      <div class="view-title">Productos en stock bajo</div>
+      <div class="view-desc">Se actualiza automáticamente a partir del estado de inventario reportado por cada empresa. Total de alertas activas: <b style="color:var(--amber)">${allLow.length}</b>.</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card warn">
+        <div class="kpi-label">Total productos en alerta</div>
+        <div class="kpi-value amber">${allLow.length}</div>
+        <div class="kpi-sub">de ${SUPPLIERS.reduce((a,s)=>a+s.products.length,0)} productos totales</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Empresas afectadas</div>
+        <div class="kpi-value">${SUPPLIERS.filter(s=>stockBajoCount(s)>0).length} / ${SUPPLIERS.length}</div>
+        <div class="kpi-sub">al menos 1 producto en stock bajo</div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="panel">
+        <div class="panel-title">Productos en stock bajo por empresa</div>
+        <div class="table-scroll">
+          <table class="data-table"><thead><tr><th>Empresa</th><th class="num">Cantidad</th></tr></thead>
+          <tbody>${byEmpresaRows}</tbody></table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Distribución</div>
+        <div class="chart-wrap small"><canvas id="chartStockBajoBar"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Detalle de productos en alerta <span class="hint">${allLow.length} registros</span></div>
+      <div class="table-toolbar">
+        <button class="btn-primary" id="downloadStockBajoPDF">Descargar PDF</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Producto</th><th>Empresa</th><th>Contenido</th><th class="num">Stock</th><th class="num">Precio sistema</th><th class="num">Diferencia</th></tr></thead>
+          <tbody>${detailRows || '<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">Sin registros</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function attachStockBajoBehavior(){
+  const pdfBtn = document.getElementById('downloadStockBajoPDF');
+  if (!pdfBtn) return;
+  pdfBtn.addEventListener('click', downloadStockBajoPDF);
+}
+
+function downloadStockBajoPDF(){
+  const allLow = [];
+  SUPPLIERS.forEach((s, idx) => {
+    s.products.forEach(p => {
+      if ((p.estadoStock||'').toUpperCase().includes('BAJO')){
+        allLow.push({ empresa: s.name, producto: p.producto, contenido: p.contenido, stock: p.stock, precioSistema: p.precioSistema, diferencia: p.diferencia });
+      }
+    });
+  });
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+
+  const margin = 40;
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const companyTitle = 'SOLUCIONES AGROMIN';
+  const subtitle = 'Detalle de productos en alerta - Stock bajo';
+  const generated = `Generado: ${new Date().toLocaleString('es-PE')}`;
+
+  // Compact styled header (more spacing)
+  const topBarY = 20;
+  const topBarH = 56;
+  doc.setFillColor(28,58,40); // dark green
+  doc.rect(0, topBarY, pageWidth, topBarH, 'F');
+  doc.setFontSize(16);
+  doc.setTextColor('#ffffff');
+  doc.text(companyTitle, pageWidth/2, topBarY + 26, { align: 'center' });
+  doc.setFontSize(10);
+  doc.setTextColor('#f5f9f6');
+  doc.text(subtitle, pageWidth/2, topBarY + 44, { align: 'center' });
+  doc.setFontSize(8);
+  doc.setTextColor('#56695a');
+  doc.text(generated, margin, topBarY + topBarH + 8);
+
+  // Table: Producto, Empresa, Contenido, Stock (compact)
+  const headers = ['Producto','Empresa','Contenido','Stock'];
+  const contentWidth = pageWidth - margin * 2;
+  let colWidths = [0.55, 0.30, 0.10, 0.05].map(p => Math.floor(p * contentWidth));
+
+  const rows = allLow.map(item => ({
+    producto: item.producto || '—',
+    empresa: item.empresa || '—',
+    contenido: item.contenido || '—',
+    stock: fmtN(item.stock,0)
+  }));
+
+  const fontSize = 8;
+  const lineHeight = 12;
+  let y = topBarY + topBarH + 28;
+  const headerHeight = lineHeight + 6;
+
+  function drawHeader(){
+    let x = margin;
+    doc.setFillColor(217,237,223); // light green header
+    doc.setDrawColor(200);
+    for (let i=0;i<headers.length;i++){
+      doc.rect(x, y - headerHeight + 2, colWidths[i], headerHeight, 'F');
+      doc.setFontSize(fontSize);
+      doc.setTextColor('#1c2a1f');
+      doc.text(headers[i], x + 4, y - 2);
+      x += colWidths[i];
+    }
+    doc.setDrawColor(200);
+    doc.line(margin, y + 6, pageWidth - margin, y + 6);
+    y += headerHeight + 2;
+  }
+
+  drawHeader();
+
+  // Rows with subtle striping
+  for (let r=0;r<rows.length;r++){
+    const row = rows[r];
+    const prodLines = doc.splitTextToSize(String(row.producto), colWidths[0] - 8);
+    const empLines = doc.splitTextToSize(String(row.empresa), colWidths[1] - 8);
+    const contLines = doc.splitTextToSize(String(row.contenido), colWidths[2] - 8);
+    const stockLines = [String(row.stock)];
+    const maxLines = Math.max(prodLines.length, empLines.length, contLines.length, stockLines.length);
+    const cellHeight = maxLines * lineHeight + 6;
+
+    if (y + cellHeight > pageHeight - 60){
+      const pnum = doc.internal.getNumberOfPages();
+      doc.setFontSize(8);
+      doc.setTextColor('#999');
+      doc.text(`Página ${pnum}`, pageWidth - margin - 40, pageHeight - 30);
+      doc.addPage();
+      y = margin + 20;
+      drawHeader();
+    }
+
+    // stripe
+    if (r % 2 === 0){ doc.setFillColor(250,250,250); doc.rect(margin, y - (lineHeight-4), contentWidth, cellHeight - 4, 'F'); }
+
+    let x = margin;
+    const cells = [prodLines, empLines, contLines, stockLines];
+    for (let c=0;c<cells.length;c++){
+      doc.setDrawColor(230);
+      doc.rect(x, y - (lineHeight-4), colWidths[c], cellHeight - 4, 'S');
+      doc.setFontSize(fontSize);
+      doc.setTextColor('#1c2a1f');
+      const lines = cells[c];
+      for (let li=0; li<lines.length; li++){
+        const txt = lines[li];
+        const textY = y + li*lineHeight - 2;
+        if (c === 3){
+          const textW = doc.getTextWidth(txt);
+          doc.text(txt, x + colWidths[c] - 6 - textW, textY);
+        } else {
+          doc.text(txt, x + 4, textY);
+        }
+      }
+      x += colWidths[c];
+    }
+    y += cellHeight;
+  }
+
+  // Footer page number
+  const pnum = doc.internal.getNumberOfPages();
+  doc.setFontSize(8);
+  doc.setTextColor('#999');
+  doc.text(`Página ${pnum}`, pageWidth - margin - 40, pageHeight - 30);
+
+  doc.save('stock-bajo-detalle.pdf');
+}
+
+
+function attachStockBajoChart(){
+  const ranked = [...SUPPLIERS].map(s=>({name:s.name, count: stockBajoCount(s)})).sort((a,b)=>b.count-a.count).slice(0,10);
+  const ctx = document.getElementById('chartStockBajoBar');
+  if (!ctx) return;
+  chartInstances.stockBajoBar = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: ranked.map(r=>r.name.replace(' S.A.C.','').replace(' S.A','').replace(' SAC','')),
+      datasets:[{ data: ranked.map(r=>r.count), backgroundColor:'rgba(184,118,30,0.5)', borderColor:'#b8761e', borderWidth:1, borderRadius:3 }]
+    },
+    options:{
+      indexAxis:'y',
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{color:'#56695a', font:{family:'IBM Plex Mono', size:10}}, grid:{color:'rgba(28,42,31,0.08)'} },
+        y:{ ticks:{color:'#1c2a1f', font:{family:'IBM Plex Mono', size:10}}, grid:{display:false} }
+      }
+    }
+  });
+}
+
+/* ---------------------------- VIEW: CAMBIO DOLAR ---------------------------- */
+
+function viewCambio(){
+  return `
+    <div class="view-header">
+      <div class="eyebrow">💱 Multimoneda</div>
+      <div class="view-title">Tipo de cambio</div>
+      <div class="view-desc">Al actualizar el tipo de cambio comercial, el sistema recalcula automáticamente el costo unitario, el monto bruto, el impuesto a la renta y la utilidad neta de <b>todos los productos cotizados en USD o por tonelada</b> (las empresas con precios ya expresados en soles, como ABC MAX, no varían).</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">T.C. Comercial actual</div>
+        <div class="kpi-value lime">${fmtN(DATA.cambioDolar.tcComercial,2)}</div>
+        <div class="kpi-sub">Tipo de cambio comercial (bancos / mercado)</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="kpi-label">T.C. SUNAT actual</div>
+        <div class="kpi-value">${fmtN(DATA.cambioDolar.tcSunat,2)}</div>
+        <div class="kpi-sub">Tipo de cambio oficial SUNAT (declaraciones)</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Actualizar tipo de cambio <span class="hint">recalcula todo el sistema en vivo</span></div>
+      <div class="calc-box">
+        <div class="calc-field">
+          <label>Nuevo T.C. Comercial</label>
+          <input type="number" id="tcComercialInput" value="${DATA.cambioDolar.tcComercial}" step="0.001" />
+        </div>
+        <div class="calc-field">
+          <label>Nuevo T.C. SUNAT</label>
+          <input type="number" id="tcSunatInput" value="${DATA.cambioDolar.tcSunat}" step="0.001" />
+        </div>
+        <button class="btn-add-gasto" id="updateTCBtn" style="border-style:solid;">↻ Actualizar precios de todos los productos</button>
+      </div>
+      <div class="footnote" id="tcUpdateStatus">Los precios en soles se recalculan al instante con la fórmula real del sistema original (precio USD × T.C. + flete + impuesto).</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Conversor rápido</div>
+      <div class="calc-box">
+        <div class="calc-field">
+          <label>Monto en USD</label>
+          <input type="number" id="calcUSD" value="100" step="0.01" />
+        </div>
+        <div class="calc-field">
+          <label>Tipo de cambio</label>
+          <select id="calcTC" style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:14px;">
+            <option value="comercial">Comercial (${fmtN(DATA.cambioDolar.tcComercial,2)})</option>
+            <option value="sunat">SUNAT (${fmtN(DATA.cambioDolar.tcSunat,2)})</option>
+          </select>
+        </div>
+        <div class="calc-result" id="calcResult">= S/ 350.00</div>
+      </div>
+      <div class="footnote">Este conversor es referencial y utiliza los mismos tipos de cambio que aplica el sistema en el cálculo de costo unitario por producto.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Tipo de cambio aplicado por empresa</div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Empresa</th><th>Esquema</th><th class="num">TC Comercial</th><th class="num">TC SUNAT</th><th>Fecha reporte</th></tr></thead>
+          <tbody>
+            ${SUPPLIERS.map((s,i) => `<tr>
+              <td class="prod-name"><a href="#sup:${i}">${esc(s.name)}</a></td>
+              <td><span class="badge-schema">${s.schema}</span></td>
+              <td class="num">${fmtN(s.meta.tcComercial,2)}</td>
+              <td class="num">${fmtN(s.meta.tcSunat,2)}</td>
+              <td>${(s.meta.fechaReporte||'').slice(0,10) || '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function attachCambioUpdate(){
+  const btn = document.getElementById('updateTCBtn');
+  const status = document.getElementById('tcUpdateStatus');
+  btn.addEventListener('click', () => {
+    const nc = parseFloat(document.getElementById('tcComercialInput').value);
+    const ns = parseFloat(document.getElementById('tcSunatInput').value);
+    if (isNaN(nc) || nc <= 0){
+      status.textContent = 'Ingresa un tipo de cambio comercial válido (mayor que 0).';
+      status.style.color = 'var(--rust)';
+      return;
+    }
+    recalcAll(nc, isNaN(ns) ? DATA.cambioDolar.tcSunat : ns);
+    SUPPLIERS.forEach(sup => {
+      sup.meta.fechaReporte = new Date().toISOString();
+    });
+    saveState();
+    buildNav();
+    buildTopbar();
+    status.textContent = `Actualizado: T.C. Comercial ${fmtN(nc,3)} aplicado a todos los productos en USD y por tonelada.`;
+    status.style.color = 'var(--lime)';
+    showToast('success', 'Tipo de cambio guardado', 'El cambio se mantendrá al recargar esta página en este navegador.');
+    render();
+  });
+}
+
+function attachCambioCalc(){
+  const usdInput = document.getElementById('calcUSD');
+  const tcSelect = document.getElementById('calcTC');
+  const result = document.getElementById('calcResult');
+  function update(){
+    const usd = parseFloat(usdInput.value) || 0;
+    const tc = tcSelect.value === 'comercial' ? DATA.cambioDolar.tcComercial : DATA.cambioDolar.tcSunat;
+    result.textContent = '= ' + fmtS(usd * tc);
+  }
+  usdInput.addEventListener('input', update);
+  tcSelect.addEventListener('change', update);
+  update();
+}
+
+/* ---------------------------- VIEW: SUPPLIER ---------------------------- */
+
+function schemaColumns(schema){
+  if (schema === 'SOLES'){
+    return [
+      {key:'producto', label:'Producto', type:'text'},
+      {key:'contenido', label:'Contenido', type:'text'},
+      {key:'flete', label:'Flete', type:'money'},
+      {key:'rentaProd', label:'I. Renta (prod)', type:'money'},
+      {key:'precioCompra', label:'Precio compra', type:'money'},
+      {key:'costoUnit', label:'Precio costo', type:'money'},
+      {key:'stock', label:'Stock', type:'int'},
+      {key:'estadoStock', label:'Estado', type:'pill'},
+      {key:'acciones', label:'', type:'actions'},
+    ];
+  }
+  if (schema === 'TON'){
+    return [
+      {key:'producto', label:'Producto', type:'text'},
+      {key:'contenido', label:'Contenido', type:'text'},
+      {key:'precioTonUSD', label:'Precio / Ton (USD)', type:'usd'},
+      {key:'bolsasTon', label:'Bolsas / Ton', type:'int'},
+      {key:'flete', label:'Flete', type:'money'},
+      {key:'impuestoBolsa', label:'Impto. bolsa', type:'money'},
+      {key:'rentaProd', label:'I. Renta (prod)', type:'money'},
+      {key:'costoUnit', label:'Costo unit.', type:'money'},
+      {key:'stock', label:'Stock', type:'int'},
+      {key:'estadoStock', label:'Estado', type:'pill'},
+      {key:'acciones', label:'', type:'actions'},
+    ];
+  }
+  // USD default
+  return [
+    {key:'producto', label:'Producto', type:'text'},
+    {key:'precioOrigUSD', label:'Precio orig. (USD)', type:'usd'},
+    {key:'contenido', label:'Contenido', type:'text'},
+    {key:'flete', label:'Flete', type:'money'},
+    {key:'rentaProd', label:'I. Renta (prod)', type:'money'},
+    {key:'costoUnit', label:'Costo unit.', type:'money'},
+    {key:'stock', label:'Stock', type:'int'},
+    {key:'estadoStock', label:'Estado', type:'pill'},
+    {key:'acciones', label:'', type:'actions'},
+  ];
+}
+
+/* Campos que se muestran en el modal "Ver detalles" en vez de la tabla */
+function detailFields(schema){
+  const base = [
+    {key:'montoBrutoSoles', label:'Monto bruto (S/.)', type:'money'},
+  ];
+  if (schema === 'USD' || schema === 'TON'){
+    base.unshift({key:'montoBrutoUSD', label:'Monto bruto (USD $)', type:'usd'});
+  }
+  if (schema === 'SOLES'){
+    base.push({key:'imptoRenta', label:'Imp. renta', type:'money'});
+  } else {
+    base.push({key:'imptoRenta', label:'Impuesto a la renta', type:'money'});
+  }
+  base.push({key:'precioSistema', label:'Precio de venta (sistema)', type:'money'});
+  base.push({key:'diferencia', label:'Diferencia (margen)', type:'diff'});
+  return base;
+}
+
+const ICON_EYE = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const ICON_EDIT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+const ICON_DELETE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+const ICON_LOTS = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><path d="M3 10v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10"/><path d="M12 4v6"/></svg>`;
+const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>`;
+
+function cellHTML(col, val, pi){
+  if (col.type === 'actions'){
+    return `<td class="actions-cell">
+      <button class="icon-btn detail-btn" data-pi="${pi}" title="Ver detalles" aria-label="Ver detalles">${ICON_EYE}</button>
+      <button class="icon-btn edit-btn" data-pi="${pi}" title="Editar producto" aria-label="Editar producto">${ICON_EDIT}</button>
+      <button class="icon-btn lot-btn" data-pi="${pi}" title="Ver lotes" aria-label="Ver lotes">📦</button>
+      <button class="icon-btn delete-btn" data-pi="${pi}" title="Enviar a inactivos" aria-label="Enviar a inactivos">${ICON_DELETE}</button>
+    </td>`;
+  }
+  if (col.type === 'text'){
+    return `<td class="${col.key==='producto'?'prod-name':''}">${esc(val ?? '—')}</td>`;
+  }
+  if (col.type === 'pill'){
+    const e = (val||'').toUpperCase();
+    const cls = e.includes('BAJO') ? 'bajo' : (e.includes('OPTIM')||e.includes('ÓPTIM')) ? 'optimo' : 'other';
+    return `<td><span class="pill ${cls}">${esc(val||'—')}</span></td>`;
+  }
+  if (col.type === 'diff'){
+    const n = Number(val);
+    const cls = n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
+    return `<td class="num ${cls}">${fmtN(val,3)}</td>`;
+  }
+  if (col.type === 'money'){
+    const extraClass = col.key === 'flete' ? 'flete-cell' : (col.key === 'imptoRenta' || col.key === 'rentaProd') ? 'renta-cell' : '';
+    return `<td class="num money-cell ${extraClass}">${fmtS(val)}</td>`;
+  }
+  if (col.type === 'usd') return `<td class="num usd-cell">${fmtUSD(val)}</td>`;
+  if (col.type === 'int') return `<td class="num">${fmtN(val,0)}</td>`;
+  return `<td class="num">${val ?? '—'}</td>`;
+}
+
+function viewSupplier(s, idx){
+  const cols = schemaColumns(s.schema);
+  const bajo = stockBajoCount(s);
+  const optimo = s.products.length - bajo;
+  const inactiveCount = (s.inactiveProducts || []).length;
+
+  const rows = s.products.map((p,pi) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('');
+
+  const inactiveRows = (s.inactiveProducts || []).map((p,pi) => `
+    <tr>
+      <td class="prod-name">${esc(p.producto || '—')}</td>
+      <td>${esc(p.contenido || '—')}</td>
+      <td class="num">${fmtN(p.stock,0)}</td>
+      <td><span class="pill ${ (p.estadoStock||'').toUpperCase().includes('BAJO') ? 'bajo':'optimo'}">${esc(p.estadoStock||'—')}</span></td>
+      <td class="num">${fmtS(p.precioSistema)}</td>
+      <td><button class="icon-btn restore-btn" data-uid="${esc(p._uid || '')}" title="Restaurar" aria-label="Restaurar">↺</button></td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Proveedor · <span class="badge-schema">esquema ${s.schema}</span></div>
+      <div class="view-title">${esc(s.name)}</div>
+      <div class="view-desc">Reporte generado el ${ (s.meta.fechaReporte||'').slice(0,10) || '—' }. Tipo de cambio comercial ${fmtN(s.meta.tcComercial,2)} · SUNAT ${fmtN(s.meta.tcSunat,2)}.</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Ingreso bruto</div>
+        <div class="kpi-value" id="kpiIngreso">${fmtS(s.meta.ingresoBruto)}</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Deducciones y gastos</div>
+        <div class="kpi-value amber" id="kpiDeducciones">${fmtS(s.meta.totalDeducciones)}</div>
+        <div class="kpi-sub">Impto. renta + gastos operativos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Utilidad neta</div>
+        <div class="kpi-value lime" id="kpiUtilidad">${fmtS(s.meta.utilidadNeta)}</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="kpi-label">Productos / Stock bajo</div>
+        <div class="kpi-value">${s.products.length} <span style="font-size:14px;color:var(--text-faint)">/ ${bajo}</span></div>
+        <div class="kpi-sub">${optimo} en estado óptimo</div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="panel">
+        <div class="panel-title">Top 8 productos por monto bruto <span class="hint">S/.</span></div>
+        <div class="chart-wrap small"><canvas id="chartSupTop"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Estado del inventario</div>
+        <div class="chart-wrap small"><canvas id="chartSupStock"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Catálogo de productos <span class="hint">${s.products.length} registros</span></div>
+      <div class="table-toolbar">
+        <div class="filter-chips" id="filterChips">
+          <div class="chip active" data-filter="all">Todos (${s.products.length})</div>
+          <div class="chip" data-filter="optimo">Óptimo (${optimo})</div>
+          <div class="chip" data-filter="bajo">Stock bajo (${bajo})</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="mini-search">
+            <span>⌕</span>
+            <input id="supSearch" placeholder="Filtrar producto…" />
+          </div>
+          <button class="btn-secondary" id="viewInactiveBtn">Ver inactivos (${inactiveCount})</button>
+          <button class="btn-primary" id="addProductBtn">+ Agregar producto</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="supTable">
+          <thead><tr>${cols.map((c,ci) => `<th data-col="${ci}" data-type="${c.type}">${esc(c.label)}</th>`).join('')}</tr></thead>
+          <tbody id="supTableBody">${rows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel gastos-panel">
+      <div class="panel-title">Tabla de gastos y deducciones independientes <span class="hint">editable · no se mezcla con el inventario</span></div>
+      <div class="view-desc" style="margin-top:-6px;margin-bottom:14px;">Costos operativos propios de la empresa (transporte, personal, alquiler, etc.). Es una tabla aparte del cálculo de utilidad neta del inventario, tal como en el archivo original.</div>
+      <div class="table-scroll">
+        <table class="data-table" id="gastosTable">
+          <thead><tr><th>Concepto / costo operativo</th><th>Categoría</th><th class="num">Monto (S/.)</th><th></th></tr></thead>
+          <tbody id="gastosBody"></tbody>
+          <tfoot><tr><td colspan="2">TOTAL GASTOS OPERATIVOS</td><td class="num" id="gastosTotal">S/ 0.00</td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <button class="btn-add-gasto" id="addGastoBtn">+ Agregar gasto</button>
+    </div>
+  `;
+}
+
+function attachSupplierCharts(s){
+  const moneyKey = s.schema === 'SOLES' ? 'montoBrutoSoles' : 'montoBrutoSoles';
+  const top = [...s.products]
+    .sort((a,b)=>(b[moneyKey]||0)-(a[moneyKey]||0))
+    .slice(0,8);
+  const ctxTop = document.getElementById('chartSupTop');
+  if (ctxTop){
+    chartInstances.supTop = new Chart(ctxTop, {
+      type:'bar',
+      data:{
+        labels: top.map(p => (p.producto||'').length > 22 ? p.producto.slice(0,20)+'…' : p.producto),
+        datasets:[{ data: top.map(p=>p[moneyKey]||0), backgroundColor:'rgba(39,110,110,0.45)', borderColor:'#276e6e', borderWidth:1, borderRadius:3 }]
+      },
+      options:{
+        indexAxis:'y',
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>fmtS(c.parsed.x) } } },
+        scales:{
+          x:{ ticks:{color:'#56695a', font:{family:'IBM Plex Mono', size:10}}, grid:{color:'rgba(28,42,31,0.08)'} },
+          y:{ ticks:{color:'#1c2a1f', font:{family:'IBM Plex Mono', size:10}}, grid:{display:false} }
+        }
+      }
+    });
+  }
+  let optimo=0, bajo=0, otro=0;
+  s.products.forEach(p => {
+    const e = (p.estadoStock||'').toUpperCase();
+    if (e.includes('BAJO')) bajo++;
+    else if (e.includes('OPTIM') || e.includes('ÓPTIM')) optimo++;
+    else otro++;
+  });
+  const ctxStock = document.getElementById('chartSupStock');
+  if (ctxStock){
+    chartInstances.supStock = new Chart(ctxStock, {
+      type:'doughnut',
+      data:{
+        labels:['Óptimo','Stock bajo','Otro / S.P.'],
+        datasets:[{ data:[optimo,bajo,otro], backgroundColor:['#3c7a2e','#b8761e','#276e6e'], borderColor:'#ffffff', borderWidth:3 }]
+      },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } }, cutout:'62%' }
+    });
+  }
+}
+
+/* ---------------------------- MODAL (ver detalles / editar producto) ---------------------------- */
+
+function openModal(bodyHTML){
+  document.getElementById('modalBody').innerHTML = bodyHTML;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.getElementById('modalBody').innerHTML = '';
+}
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function createSupplier({ name, schema = 'SOLES' } = {}){
+  const normalizedName = (name || '').trim() || `Nuevo proveedor ${SUPPLIERS.length + 1}`;
+  const normalizedSchema = ['SOLES', 'USD', 'TON'].includes(schema) ? schema : 'SOLES';
+  const supplier = {
+    name: normalizedName,
+    schema: normalizedSchema,
+    meta: {
+      fechaReporte: new Date().toISOString(),
+      tcComercial: DATA.cambioDolar.tcComercial,
+      tcSunat: DATA.cambioDolar.tcSunat,
+      impuestoRenta: 0.02,
+      ingresoBruto: 0,
+      totalDeducciones: 0,
+      utilidadNeta: 0
+    },
+    products: [],
+    inactiveProducts: []
+  };
+  DATA.suppliers.push(supplier);
+  SUPPLIERS = DATA.suppliers;
+  saveState();
+  return SUPPLIERS.length - 1;
+}
+
+function viewNewSupplier(){
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Agregar proveedor</div>
+      <div class="view-title">Nuevo proveedor</div>
+      <div class="view-desc">Crea una nueva vista de proveedor para registrar productos y costos.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Datos del proveedor</div>
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Nombre del proveedor</label>
+          <input type="text" id="newSupplierName" placeholder="Ej. Agro Norte S.A." autofocus />
+        </div>
+        <div class="form-field full">
+          <label>Esquema de precios</label>
+          <select id="newSupplierSchema">
+            <option value="SOLES">SOLES</option>
+            <option value="USD">USD</option>
+            <option value="TON">TON</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn-secondary" id="newSupplierCancelBtn">Cancelar</button>
+        <button class="btn-primary" id="newSupplierSaveBtn">Crear proveedor</button>
+      </div>
+    </div>
+  `;
+}
+
+function attachNewSupplierForm(){
+  const cancelBtn = document.getElementById('newSupplierCancelBtn');
+  const saveBtn = document.getElementById('newSupplierSaveBtn');
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      window.location.hash = 'dashboard';
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const name = document.getElementById('newSupplierName').value.trim();
+      if (!name) {
+        Swal.fire({
+          title: 'Falta el nombre',
+          text: 'Ingresa un nombre para el proveedor.',
+          icon: 'warning',
+          customClass: { popup: 'agromin-swal' }
+        });
+        return;
+      }
+
+      const schema = document.getElementById('newSupplierSchema').value;
+      const idx = createSupplier({ name, schema });
+      buildNav();
+      buildTopbar();
+      window.location.hash = `sup:${idx}`;
+    });
+  }
+}
+
+function detailValueHTML(field, val){
+  if (field.type === 'usd') return fmtUSD(val);
+  if (field.type === 'diff'){
+    const n = Number(val);
+    return n; // formatted below with class
+  }
+  return fmtS(val);
+}
+
+function openProductDetailModal(s, pi){
+  const p = s.products[pi];
+  const fields = detailFields(s.schema);
+  const bajo = (p.estadoStock||'').toUpperCase().includes('BAJO');
+
+  const items = fields.map(f => {
+    if (f.type === 'diff'){
+      const n = Number(p[f.key]) || 0;
+      const cls = n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
+      return `<div class="detail-item"><div class="dlabel">${esc(f.label)}</div><div class="dvalue ${cls}">${fmtN(p[f.key],3)}</div></div>`;
+    }
+    const formatted = f.type === 'usd' ? fmtUSD(p[f.key]) : fmtS(p[f.key]);
+    return `<div class="detail-item"><div class="dlabel">${esc(f.label)}</div><div class="dvalue">${formatted}</div></div>`;
+  }).join('');
+
+  openModal(`
+    <div class="modal-eyebrow">Ver detalles · ${esc(s.name)}</div>
+    <div class="modal-title">${esc(p.producto)}</div>
+    <div class="modal-sub">${esc(p.contenido||'—')} · <span class="pill ${bajo?'bajo':'optimo'}" style="margin-left:4px;">${esc(p.estadoStock||'—')}</span></div>
+    <div class="detail-grid">${items}</div>
+  `);
+}
+
+function openProductEditModal(s, supIdx, pi, onSaved){
+  const p = s.products[pi];
+  let fieldsHTML = '';
+
+  if (s.schema === 'USD'){
+    fieldsHTML = `
+      <div class="form-field"><label>Precio original (USD)</label><input type="number" step="0.01" id="f_precioOrigUSD" value="${p.precioOrigUSD ?? 0}"/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="${p.flete ?? 0}"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="${p.stock ?? 0}"/></div>
+      <div class="form-field"><label>Precio de venta (sistema)</label><input type="number" step="0.01" id="f_precioSistema" value="${p.precioSistema ?? 0}"/></div>
+    `;
+  } else if (s.schema === 'TON'){
+    fieldsHTML = `
+      <div class="form-field"><label>Precio / Ton (USD)</label><input type="number" step="0.01" id="f_precioTonUSD" value="${p.precioTonUSD ?? 0}"/></div>
+      <div class="form-field"><label>Bolsas / Ton</label><input type="number" step="0.01" id="f_bolsasTon" value="${p.bolsasTon ?? 0}"/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="${p.flete ?? 0}"/></div>
+      <div class="form-field"><label>Impuesto bolsa (S/.)</label><input type="number" step="0.01" id="f_impuestoBolsa" value="${p.impuestoBolsa ?? 0}"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="${p.stock ?? 0}"/></div>
+      <div class="form-field"><label>Precio de venta (sistema)</label><input type="number" step="0.01" id="f_precioSistema" value="${p.precioSistema ?? 0}"/></div>
+    `;
+  } else { // SOLES
+    fieldsHTML = `
+      <div class="form-field"><label>Precio de compra (S/.)</label><input type="number" step="0.01" id="f_precioCompra" value="${p.precioCompra ?? 0}"/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="${p.flete ?? 0}"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="${p.stock ?? 0}"/></div>
+      <div class="form-field"><label>Precio de venta (sistema)</label><input type="number" step="0.01" id="f_precioSistema" value="${p.precioSistema ?? 0}"/></div>
+    `;
+  }
+
+  openModal(`
+    <div class="modal-eyebrow">Editar producto · ${esc(s.name)}</div>
+    <div class="modal-title">${esc(p.producto)}</div>
+    <div class="modal-sub">${esc(p.contenido||'—')}</div>
+    <div class="preview-note">Al guardar se recalcula automáticamente el costo unitario, monto bruto, impuesto a la renta y diferencia con el tipo de cambio vigente (${fmtN(s.meta.tcComercial,2)}).</div>
+    <div class="form-grid">${fieldsHTML}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="editCancelBtn">Cancelar</button>
+      <button class="btn-primary" id="editSaveBtn">Guardar cambios</button>
+    </div>
+  `);
+
+  document.getElementById('editCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('editSaveBtn').addEventListener('click', () => {
+    const num = (id) => parseFloat(document.getElementById(id).value) || 0;
+    const oldStock = Number(p.stock) || 0;
+    p.lotes = Array.isArray(p.lotes) ? p.lotes : [];
+
+    const newStock = num('f_stock');
+    if (s.schema === 'USD'){
+      p.precioOrigUSD = num('f_precioOrigUSD');
+      p.flete = num('f_flete');
+      p.stock = newStock;
+      p.precioSistema = num('f_precioSistema');
+    } else if (s.schema === 'TON'){
+      p.precioTonUSD = num('f_precioTonUSD');
+      p.bolsasTon = num('f_bolsasTon');
+      p.flete = num('f_flete');
+      p.impuestoBolsa = num('f_impuestoBolsa');
+      p.stock = newStock;
+      p.precioSistema = num('f_precioSistema');
+    } else {
+      p.precioCompra = num('f_precioCompra');
+      p.flete = num('f_flete');
+      p.stock = newStock;
+      p.precioSistema = num('f_precioSistema');
+    }
+
+    recalcSingleProduct(s, p);
+    const sold = Math.max(oldStock - newStock, 0);
+    p.prevStock = newStock;
+    s.meta.fechaReporte = new Date().toISOString();
+    recalcSupplierMeta(s);
+    saveState();
+    closeModal();
+
+    if (typeof onSaved === 'function') onSaved();
+    buildNav();
+    const kIngreso = document.getElementById('kpiIngreso');
+    const kDeducciones = document.getElementById('kpiDeducciones');
+    const kUtilidad = document.getElementById('kpiUtilidad');
+    if (kIngreso) kIngreso.textContent = fmtS(s.meta.ingresoBruto);
+    if (kDeducciones) kDeducciones.textContent = fmtS(s.meta.totalDeducciones);
+    if (kUtilidad) kUtilidad.textContent = fmtS(s.meta.utilidadNeta);
+
+    Swal.fire({
+      title: sold > 0 ? 'Venta registrada' : 'Producto actualizado',
+      text: sold > 0
+        ? `Se registraron ${fmtInt(sold)} unidades vendidas. Stock actualizado a ${fmtInt(p.stock)}.`
+        : 'Stock y precios fueron guardados correctamente.',
+      icon: 'success',
+      customClass: { popup: 'agromin-swal' }
+    });
+  });
+}
+
+function openAddProductModal(s, supIdx, onSaved){
+  const schema = s.schema;
+  let fieldsHTML = '';
+
+  if (schema === 'USD'){
+    fieldsHTML = `
+      <div class="form-field full"><label>Producto</label><input type="text" id="f_producto" value=""/></div>
+      <div class="form-field"><label>Precio original (USD)</label><input type="number" step="0.01" id="f_precioOrigUSD" value="0"/></div>
+      <div class="form-field"><label>Contenido</label><input type="text" id="f_contenido" value=""/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="0"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="0"/></div>
+      <div class="form-field full"><label>Precio de venta (sistema)</label><input type="number" step="0.01" id="f_precioSistema" value="0"/></div>
+    `;
+  } else if (schema === 'TON'){
+    fieldsHTML = `
+      <div class="form-field full"><label>Producto</label><input type="text" id="f_producto" value=""/></div>
+      <div class="form-field"><label>Precio / Ton (USD)</label><input type="number" step="0.01" id="f_precioTonUSD" value="0"/></div>
+      <div class="form-field"><label>Bolsas / Ton</label><input type="number" step="1" id="f_bolsasTon" value="1"/></div>
+      <div class="form-field"><label>Contenido</label><input type="text" id="f_contenido" value=""/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="0"/></div>
+      <div class="form-field"><label>Impuesto bolsa (S/.)</label><input type="number" step="0.01" id="f_impuestoBolsa" value="0"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="0"/></div>
+      <div class="form-field full"><label>Precio de venta (sistema)</label><input type="number" step="0.01" id="f_precioSistema" value="0"/></div>
+    `;
+  } else {
+    fieldsHTML = `
+      <div class="form-field full"><label>Producto</label><input type="text" id="f_producto" value=""/></div>
+      <div class="form-field"><label>Precio de compra (S/.)</label><input type="number" step="0.01" id="f_precioCompra" value="0"/></div>
+      <div class="form-field"><label>Contenido</label><input type="text" id="f_contenido" value=""/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="0"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="0"/></div>
+      <div class="form-field full"><label>Precio de venta (sistema)</label><input type="number" step="0.01" id="f_precioSistema" value="0"/></div>
+    `;
+  }
+
+  openModal(`
+    <div class="modal-eyebrow">Agregar producto · ${esc(s.name)}</div>
+    <div class="modal-title">Nuevo producto</div>
+    <div class="modal-sub">Los valores se guardarán en soles y se calcularán automáticamente.</div>
+    <div class="form-grid">${fieldsHTML}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="addCancelBtn">Cancelar</button>
+      <button class="btn-primary" id="addSaveBtn">Agregar</button>
+    </div>
+  `);
+
+  document.getElementById('addCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('addSaveBtn').addEventListener('click', () => {
+    const txt = (id) => document.getElementById(id).value.trim();
+    const num = (id) => parseFloat(document.getElementById(id).value) || 0;
+
+    const newProduct = {
+      producto: txt('f_producto') || 'Producto nuevo',
+      contenido: txt('f_contenido') || '—',
+      flete: num('f_flete'),
+      stock: num('f_stock'),
+      precioSistema: num('f_precioSistema'),
+      precioCompra: 0,
+      precioOrigUSD: 0,
+      precioTonUSD: 0,
+      bolsasTon: 1,
+      impuestoBolsa: 0,
+      rentaProd: 0,
+      costoUnit: 0,
+      montoBrutoUSD: 0,
+      montoBrutoSoles: 0,
+      imptoRenta: 0,
+      diferencia: 0,
+      estadoStock: 'OPTIMO',
+      isActive: true,
+      deletedAt: null,
+    };
+
+    if (schema === 'USD'){
+      newProduct.precioOrigUSD = num('f_precioOrigUSD');
+    } else if (schema === 'TON'){
+      newProduct.precioTonUSD = num('f_precioTonUSD');
+      newProduct.bolsasTon = num('f_bolsasTon') || 1;
+      newProduct.impuestoBolsa = num('f_impuestoBolsa');
+    } else {
+      newProduct.precioCompra = num('f_precioCompra');
+    }
+
+    newProduct.prevStock = newProduct.stock;
+    newProduct.lotes = [];
+    ensureProductIdentity(newProduct, s.name, s.products.length);
+    recalcSingleProduct(s, newProduct);
+    s.products.push(newProduct);
+    s.meta.fechaReporte = new Date().toISOString();
+    recalcSupplierMeta(s);
+    saveState();
+    closeModal();
+    if (typeof onSaved === 'function') onSaved();
+  });
+}
+
+function viewProductLots(s, supIdx, pi){
+  const p = s.products[pi];
+  const lots = Array.isArray(p.lotes) ? p.lotes : [];
+  const rows = lots.map((lot, li) => `
+      <tr>
+        <td>${esc(lot.fecha ? lot.fecha.slice(0,10) : '—')}</td>
+        <td class="num">${fmtN(lot.cantidad,0)}</td>
+        <td class="num">${fmtS(lot.precioUnitario)}</td>
+        <td class="num">${fmtS(lot.importe)}</td>
+        <td><button class="btn-secondary btn-delete-lot" data-li="${li}">Eliminado de lote</button></td>
+      </tr>
+    `).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay lotes registrados para este producto.</td></tr>`;
+
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Lotes · ${esc(s.name)}</div>
+      <div class="view-title">Lotes de ${esc(p.producto)}</div>
+      <div class="view-desc">Registra nuevos lotes para sumar stock, ver precio unitario e importe, y aplicar el precio del lote al producto.</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Stock actual</div>
+        <div class="kpi-value" id="lotStockValue">${fmtN(p.stock,0)}</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="kpi-label">Stock previo</div>
+        <div class="kpi-value lime">${fmtN(p.prevStock,0)}</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Precio actual</div>
+        <div class="kpi-value amber">${fmtS(p.precioSistema)}</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Lotes registrados <span class="hint">${lots.length} registros</span></div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Fecha</th><th class="num">Cantidad</th><th class="num">Precio unitario</th><th class="num">Importe</th><th>Acción</th></tr></thead>
+          <tbody id="lotsTableBody">${rows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Agregar lote nuevo</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Cantidad</label><input type="number" step="1" id="lotCantidad" value="0"/></div>
+        <div class="form-field"><label>Precio unitario</label><input type="number" step="0.01" id="lotPrecioUnitario" value="0"/></div>
+        <div class="form-field full"><label>Nota (opcional)</label><input type="text" id="lotNota" placeholder="Descripción del lote"/></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="backToSupplierFromLotsBtn">Volver</button>
+        <button class="btn-primary" id="addLotSaveBtn">Agregar lote</button>
+      </div>
+    </div>
+  `;
+}
+
+function attachProductLotsBehavior(s, supIdx, pi){
+  const p = s.products[pi];
+  const updateLotsTable = () => {
+    const tableBody = document.getElementById('lotsTableBody');
+    const stockValue = document.getElementById('lotStockValue');
+    if (!tableBody) return;
+    const rows = (Array.isArray(p.lotes) ? p.lotes : []).map((lot, li) => `
+      <tr>
+        <td>${esc(lot.fecha ? lot.fecha.slice(0,10) : '—')}</td>
+        <td class="num">${fmtN(lot.cantidad,0)}</td>
+        <td class="num">${fmtS(lot.precioUnitario)}</td>
+        <td class="num">${fmtS(lot.importe)}</td>
+        <td><button class="btn-secondary btn-delete-lot" data-li="${li}">Eliminado de lote</button></td>
+      </tr>
+    `).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay lotes registrados para este producto.</td></tr>`;
+    tableBody.innerHTML = rows;
+    if (stockValue) stockValue.textContent = fmtN(p.stock,0);
+  };
+
+  const backBtn = document.getElementById('backToSupplierFromLotsBtn');
+  const addBtn = document.getElementById('addLotSaveBtn');
+  const cantidadInput = document.getElementById('lotCantidad');
+  const precioInput = document.getElementById('lotPrecioUnitario');
+  const notaInput = document.getElementById('lotNota');
+
+  if (backBtn){
+    backBtn.addEventListener('click', () => {
+      window.location.hash = `sup:${supIdx}`;
+    });
+  }
+  if (addBtn){
+    addBtn.addEventListener('click', () => {
+      const cantidad = Math.max(0, parseInt(cantidadInput.value, 10) || 0);
+      const precioUnitario = parseFloat(precioInput.value) || 0;
+      if (cantidad <= 0 || precioUnitario <= 0){
+        Swal.fire({ title: 'Datos incompletos', text: 'Ingresa cantidad y precio unitario válidos.', icon: 'warning', customClass: { popup: 'agromin-swal' } });
+        return;
+      }
+      const importe = cantidad * precioUnitario;
+      const lot = {
+        id: `${p._uid || ''}-lot-${Date.now()}`,
+        fecha: new Date().toISOString(),
+        cantidad,
+        precioUnitario,
+        importe,
+        nota: notaInput.value.trim() || '',
+      };
+      p.lotes = Array.isArray(p.lotes) ? p.lotes : [];
+      p.lotes.push(lot);
+      p.stock = (Number(p.stock) || 0) + cantidad;
+      recalcSingleProduct(s, p);
+      p.prevStock = p.stock;
+      s.meta.fechaReporte = new Date().toISOString();
+      recalcSupplierMeta(s);
+      saveState();
+      cantidadInput.value = '0';
+      precioInput.value = '0';
+      notaInput.value = '';
+      updateLotsTable();
+      showToast('success', 'Lote agregado', `Stock actualizado en ${fmtInt(cantidad)} unidades.`);
+    });
+  }
+
+  document.getElementById('content').addEventListener('click', (e) => {
+    const deleteBtn = e.target.closest('.btn-delete-lot');
+    if (!deleteBtn) return;
+    const li = parseInt(deleteBtn.dataset.li, 10);
+    if (Number.isNaN(li)) return;
+    const lot = (p.lotes || [])[li];
+    if (!lot) return;
+    p.lotes.splice(li, 1);
+    p.stock = Math.max(0, (Number(p.stock) || 0) - (Number(lot.cantidad) || 0));
+    recalcSingleProduct(s, p);
+    p.prevStock = p.stock;
+    s.meta.fechaReporte = new Date().toISOString();
+    recalcSupplierMeta(s);
+    saveState();
+    updateLotsTable();
+    showToast('success', 'Lote eliminado', 'Se removió el lote y se actualizó el stock.');
+  });
+}
+
+function viewInactiveSupplier(s, idx){
+  const inactive = s.inactiveProducts || [];
+  const countOptimo = inactive.filter(p => !(p.estadoStock||'').toUpperCase().includes('BAJO')).length;
+  const countBajo = inactive.filter(p => (p.estadoStock||'').toUpperCase().includes('BAJO')).length;
+
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Productos inactivos · ${esc(s.name)}</div>
+      <div class="view-title">Vista de inactivos</div>
+      <div class="view-desc">Tabla independiente de productos eliminados. Desde aquí puedes restaurarlos al catálogo activo.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Inactivos de ${esc(s.name)} <span class="hint">${inactive.length} registros</span></div>
+      <div class="table-toolbar">
+        <div class="filter-chips" id="inactiveFilterChips">
+          <div class="chip active" data-filter="all">Todos (${inactive.length})</div>
+          <div class="chip" data-filter="optimo">Óptimo (${countOptimo})</div>
+          <div class="chip" data-filter="bajo">Stock bajo (${countBajo})</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="mini-search">
+            <span>⌕</span>
+            <input id="inactiveSearch" placeholder="Buscar inactivos…" />
+          </div>
+          <button class="btn-secondary" id="backToSupplierBtn">Volver al catálogo activo</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Producto</th><th>Contenido</th><th class="num">Stock</th><th>Estado</th><th class="num">Precio en S/.</th><th>Acciones</th></tr></thead>
+          <tbody id="inactiveTableBody">
+            ${inactive.map(p => `
+              <tr data-uid="${esc(p._uid||'')}">
+                <td class="prod-name">${esc(p.producto||'—')}</td>
+                <td>${esc(p.contenido||'—')}</td>
+                <td class="num">${fmtN(p.stock,0)}</td>
+                <td><span class="pill ${ (p.estadoStock||'').toUpperCase().includes('BAJO') ? 'bajo':'optimo'}">${esc(p.estadoStock||'—')}</span></td>
+                <td class="num">${fmtS(p.precioSistema)}</td>
+                <td>
+                  <button class="icon-btn restore-btn" data-uid="${esc(p._uid||'')}" title="Restaurar" aria-label="Restaurar">↺</button>
+                  <button class="icon-btn delete-perm-btn" data-uid="${esc(p._uid||'')}" title="Eliminar permanentemente" aria-label="Eliminar">🗑</button>
+                </td>
+              </tr>
+            `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">No hay productos inactivos.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function attachInactiveSupplierBehavior(idx){
+  const s = SUPPLIERS[idx];
+  const chips = document.querySelectorAll('#inactiveFilterChips .chip');
+  const searchInput = document.getElementById('inactiveSearch');
+  const tableBody = document.getElementById('inactiveTableBody');
+  const backBtn = document.getElementById('backToSupplierBtn');
+  let currentFilter = 'all';
+  let currentSearch = '';
+
+  function render(){
+    const items = (s.inactiveProducts || []).filter(p => {
+      if (currentFilter === 'optimo') return !(p.estadoStock||'').toUpperCase().includes('BAJO');
+      if (currentFilter === 'bajo') return (p.estadoStock||'').toUpperCase().includes('BAJO');
+      return true;
+    }).filter(p => {
+      if (!currentSearch) return true;
+      const term = currentSearch;
+      return (p.producto||'').toLowerCase().includes(term) || (p.contenido||'').toLowerCase().includes(term);
+    });
+
+    tableBody.innerHTML = items.map(p => `
+      <tr data-uid="${esc(p._uid||'')}">
+        <td class="prod-name">${esc(p.producto||'—')}</td>
+        <td>${esc(p.contenido||'—')}</td>
+        <td class="num">${fmtN(p.stock,0)}</td>
+        <td><span class="pill ${ (p.estadoStock||'').toUpperCase().includes('BAJO') ? 'bajo':'optimo'}">${esc(p.estadoStock||'—')}</span></td>
+        <td class="num">${fmtS(p.precioSistema)}</td>
+        <td>
+          <button class="icon-btn restore-btn" data-uid="${esc(p._uid||'')}" title="Restaurar" aria-label="Restaurar">↺</button>
+          <button class="icon-btn delete-perm-btn" data-uid="${esc(p._uid||'')}" title="Eliminar permanentemente" aria-label="Eliminar">🗑</button>
+        </td>
+      </tr>
+    `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">No hay productos inactivos que coincidan con el filtro.</td></tr>`;
+  }
+
+  chips.forEach(chip => chip.addEventListener('click', () => {
+    chips.forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    render();
+  }));
+
+  searchInput.addEventListener('input', (e) => {
+    currentSearch = e.target.value.toLowerCase();
+    render();
+  });
+
+  if (backBtn){
+    backBtn.addEventListener('click', () => {
+      window.location.hash = `sup:${idx}`;
+    });
+  }
+
+  document.getElementById('content').addEventListener('click', (e) => {
+    const restoreBtn = e.target.closest('.restore-btn');
+    const delBtn = e.target.closest('.delete-perm-btn');
+    if (restoreBtn){
+      const uid = restoreBtn.dataset.uid;
+      if (!uid) return;
+      restoreFromInactive(s, uid);
+      showToast('success', 'Producto restaurado', 'Ya está de vuelta en el catálogo activo.');
+      buildNav(); buildTopbar(); window.location.hash = `sup:${idx}`;
+      return;
+    }
+    if (delBtn){
+      const uid = delBtn.dataset.uid;
+      if (!uid) return;
+      Swal.fire({
+        title: 'Eliminar permanentemente',
+        text: '¿Estás seguro? Esta acción no se puede deshacer.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+        customClass: { popup: 'agromin-swal' }
+      }).then(res => {
+        if (res.isConfirmed){
+          const idx = (s.inactiveProducts || []).findIndex(p => (p._uid||'') === uid);
+          if (idx > -1){
+            s.inactiveProducts.splice(idx, 1);
+            saveState();
+            showToast('success','Eliminado','Producto eliminado permanentemente.');
+            render();
+            buildNav(); buildTopbar();
+          }
+        }
+      });
+      return;
+    }
+  });
+}
+
+/* ---------------------------- GASTOS Y DEDUCCIONES (independiente, editable) ---------------------------- */
+
+function gastosStorageKey(supplierName){
+  return 'agromin_gastos::' + supplierName;
+}
+function loadGastos(supplierName){
+  try{
+    const raw = localStorage.getItem(gastosStorageKey(supplierName));
+    return raw ? JSON.parse(raw) : [];
+  } catch(e){ return []; }
+}
+function saveGastos(supplierName, arr){
+  try{ localStorage.setItem(gastosStorageKey(supplierName), JSON.stringify(arr)); } catch(e){ /* storage unavailable */ }
+}
+
+function attachGastosPanel(s){
+  const body = document.getElementById('gastosBody');
+  const totalEl = document.getElementById('gastosTotal');
+  const addBtn = document.getElementById('addGastoBtn');
+  if (!body) return;
+  let gastos = loadGastos(s.name);
+
+  function recalcTotal(){
+    const total = gastos.reduce((a,g) => a + (parseFloat(g.monto) || 0), 0);
+    totalEl.textContent = fmtS(total);
+    recalcSupplierMeta(s);
+    const kIngreso = document.getElementById('kpiIngreso');
+    const kDeducciones = document.getElementById('kpiDeducciones');
+    const kUtilidad = document.getElementById('kpiUtilidad');
+    if (kIngreso) kIngreso.textContent = fmtS(s.meta.ingresoBruto);
+    if (kDeducciones) kDeducciones.textContent = fmtS(s.meta.totalDeducciones);
+    if (kUtilidad) kUtilidad.textContent = fmtS(s.meta.utilidadNeta);
+  }
+
+  function paint(){
+    body.innerHTML = gastos.length ? gastos.map((g,i) => `
+      <tr data-i="${i}">
+        <td><input class="gastos-input" data-field="concepto" placeholder="Ej. Flete interno" value="${esc(g.concepto||'')}"/></td>
+        <td><input class="gastos-input" data-field="categoria" placeholder="Categoría" value="${esc(g.categoria||'')}"/></td>
+        <td class="num"><input class="gastos-input monto" data-field="monto" type="number" step="0.01" placeholder="0.00" value="${g.monto ?? ''}"/></td>
+        <td><button class="gasto-del" data-i="${i}" title="Eliminar">×</button></td>
+      </tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:16px;">Sin gastos registrados todavía. Usa "Agregar gasto" para empezar.</td></tr>`;
+
+    body.querySelectorAll('.gastos-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const tr = e.target.closest('tr');
+        const i = parseInt(tr.dataset.i, 10);
+        gastos[i][e.target.dataset.field] = e.target.value;
+        saveGastos(s.name, gastos);
+        recalcTotal();
+      });
+    });
+    body.querySelectorAll('.gasto-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.i, 10);
+        gastos.splice(i, 1);
+        saveGastos(s.name, gastos);
+        paint();
+        recalcTotal();
+      });
+    });
+    recalcTotal();
+  }
+
+  addBtn.addEventListener('click', () => {
+    gastos.push({concepto:'', categoria:'', monto:0});
+    saveGastos(s.name, gastos);
+    paint();
+  });
+
+  paint();
+}
+
+function attachSupplierBehavior(idx){
+  const s = SUPPLIERS[idx];
+  const cols = schemaColumns(s.schema);
+  let currentFilter = 'all';
+  let currentSearch = '';
+  let sortCol = null, sortDir = 1;
+
+  const tbody = document.getElementById('supTableBody');
+  const chips = document.querySelectorAll('#filterChips .chip');
+  const searchInput = document.getElementById('supSearch');
+  const headers = document.querySelectorAll('#supTable thead th');
+  const content = document.getElementById('content');
+  const viewInactiveBtn = document.getElementById('viewInactiveBtn');
+  const addProductBtn = document.getElementById('addProductBtn');
+
+  function applyAndRender(){
+    let items = s.products.map((p,pi)=>({p,pi}));
+    if (currentFilter === 'optimo') items = items.filter(x => !(x.p.estadoStock||'').toUpperCase().includes('BAJO'));
+    if (currentFilter === 'bajo') items = items.filter(x => (x.p.estadoStock||'').toUpperCase().includes('BAJO'));
+    if (currentSearch) items = items.filter(x => (x.p.producto||'').toLowerCase().includes(currentSearch));
+    if (sortCol !== null){
+      const col = cols[sortCol];
+      items.sort((a,b) => {
+        let va = a.p[col.key], vb = b.p[col.key];
+        if (typeof va === 'string' || typeof vb === 'string'){
+          va = (va||'').toString().toLowerCase(); vb = (vb||'').toString().toLowerCase();
+          return va < vb ? -1*sortDir : va > vb ? 1*sortDir : 0;
+        }
+        va = Number(va)||0; vb = Number(vb)||0;
+        return (va-vb)*sortDir;
+      });
+    }
+    tbody.innerHTML = items.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('')
+      || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-faint);padding:20px;">Sin resultados</td></tr>`;
+  }
+
+  chips.forEach(chip => chip.addEventListener('click', () => {
+    chips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    applyAndRender();
+  }));
+
+  searchInput.addEventListener('input', (e) => {
+    currentSearch = e.target.value.toLowerCase();
+    applyAndRender();
+  });
+
+  headers.forEach((th, ci) => {
+    if (cols[ci].type === 'actions') return; // no ordenar la columna de acciones
+    th.addEventListener('click', () => {
+      if (sortCol === ci) sortDir *= -1; else { sortCol = ci; sortDir = 1; }
+      headers.forEach(h=>h.classList.remove('sorted-asc','sorted-desc'));
+      th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+      applyAndRender();
+    });
+  });
+
+  if (viewInactiveBtn) {
+    viewInactiveBtn.addEventListener('click', () => {
+      window.location.hash = `sup-inactivos:${idx}`;
+    });
+  }
+
+  if (addProductBtn) {
+    addProductBtn.addEventListener('click', () => {
+      openAddProductModal(s, idx, () => {
+        buildNav(); buildTopbar(); render();
+        showToast('success', 'Producto agregado', 'El producto ahora está en el catálogo activo.');
+      });
+    });
+  }
+
+  // Delegación de eventos para los botones de Ver detalles / Editar / Eliminar / Restaurar
+  content.onclick = (e) => {
+    const detailBtn = e.target.closest('.detail-btn');
+    const editBtn = e.target.closest('.edit-btn');
+    const lotBtn = e.target.closest('.lot-btn');
+    const deleteBtn = e.target.closest('.delete-btn');
+    const restoreBtn = e.target.closest('.restore-btn');
+
+    if (detailBtn){
+      const pi = parseInt(detailBtn.dataset.pi, 10);
+      openProductDetailModal(s, pi);
+    } else if (editBtn){
+      const pi = parseInt(editBtn.dataset.pi, 10);
+      openProductEditModal(s, idx, pi, applyAndRender);
+    } else if (lotBtn){
+      const pi = parseInt(lotBtn.dataset.pi, 10);
+      if (!Number.isNaN(pi)) window.location.hash = `sup-lotes:${idx}:${pi}`;
+    } else if (deleteBtn){
+      const pi = parseInt(deleteBtn.dataset.pi, 10);
+      const product = s.products[pi];
+      if (!product) return;
+      Swal.fire({
+        title: '¿Enviar a inactivos?',
+        text: `El producto "${product.producto || 'sin nombre'}" quedará oculto del catálogo activo.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, enviar',
+        cancelButtonText: 'Cancelar',
+        customClass: { popup: 'agromin-swal' }
+      }).then((res) => {
+        if (res.isConfirmed) {
+          moveToInactive(s, product);
+          buildNav(); buildTopbar(); render();
+          showToast('success', 'Producto enviado a inactivos', 'Podrás restaurarlo desde la vista de inactivos.');
+        }
+      });
+    } else if (restoreBtn){
+      const uid = restoreBtn.dataset.uid;
+      if (!uid) return;
+      restoreFromInactive(s, uid);
+      buildNav(); buildTopbar(); render();
+      showToast('success', 'Producto restaurado', 'Se devolvió al catálogo activo.');
+    }
+  };
+}
+
+/* ---------------------------- GLOBAL SEARCH ---------------------------- */
+
+document.getElementById('globalSearch').addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  if (q.length < 2) return;
+  // Jump to dashboard-like results view inline (simple: find first match & navigate to its supplier)
+});
+document.getElementById('globalSearch').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter'){
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) return;
+    window.location.hash = 'search:' + encodeURIComponent(q);
+  }
+});
+
+
+function viewGlobalSearch(q){
+  let results = [];
+  SUPPLIERS.forEach((s, idx) => {
+    s.products.forEach(p => {
+      if ((p.producto||'').toLowerCase().includes(q)){
+        results.push({...p, empresa: s.name, supIdx: idx});
+      }
+    });
+  });
+  const rows = results.map(p => `
+    <tr>
+      <td class="prod-name">${esc(p.producto)}</td>
+      <td><a href="#sup:${p.supIdx}">${esc(p.empresa)}</a></td>
+      <td>${esc(p.contenido||'—')}</td>
+      <td class="num">${fmtN(p.stock,0)}</td>
+      <td><span class="pill ${ (p.estadoStock||'').toUpperCase().includes('BAJO') ? 'bajo':'optimo'}">${esc(p.estadoStock||'—')}</span></td>
+      <td class="num">${fmtS(p.precioSistema)}</td>
+    </tr>
+  `).join('');
+  return `
+    <div class="view-header">
+      <div class="eyebrow">Búsqueda global</div>
+      <div class="view-title">Resultados para "${esc(q)}"</div>
+      <div class="view-desc">${results.length} producto(s) encontrado(s) en ${SUPPLIERS.length} proveedores.</div>
+    </div>
+    <div class="panel">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Producto</th><th>Empresa</th><th>Contenido</th><th class="num">Stock</th><th>Estado</th><th class="num">Precio sistema</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">Sin resultados</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------------------- MOBILE MENU ---------------------------- */
+document.getElementById('menuBtn').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+/* ---------------------------- INIT ---------------------------- */
+initialRecalc();
+buildNav();
+buildTopbar();
+render();
+
+</script>
+</body>
+</html>
