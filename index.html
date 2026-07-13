@@ -4784,21 +4784,6 @@ const AGROMIN_DATA = {
                                                "montoBrutoUSD":  0,
                                                "montoBrutoSoles":  0
                                            },
-                                           {
-                                               "producto":  " ",
-                                               "contenido":  "MONTO SOLES",
-                                               "flete":  null,
-                                               "rentaProd":  null,
-                                               "stock":  null,
-                                               "estadoStock":  null,
-                                               "precioSistema":  null,
-                                               "diferencia":  null,
-                                               "imptoRenta":  null,
-                                               "precioOrigUSD":  "CATEGORÍA",
-                                               "costoUnit":  null,
-                                               "montoBrutoUSD":  null,
-                                               "montoBrutoSoles":  null
-                                           }
                                        ]
                       },
                       {
@@ -5334,21 +5319,42 @@ function esc(s){
 
 const STORAGE_KEY = 'agromin_state_v1';
 const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
-const AUTH_USER = 'AGROMIN';
-const AUTH_PASS = '123';
 const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
 const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
+const USERS = {
+  AGROMIN: { password: '123', role: 'admin' },
+  SOLUCIONES: { password: '123', role: 'limited' }
+};
 const BASE_DATA = AGROMIN_DATA;
 
 function cloneData(data){ return JSON.parse(JSON.stringify(data)); }
-function isAuthenticated(){ return localStorage.getItem(AUTH_KEY) === AUTH_USER && !isSessionExpired(); }
+function findUserKey(username){
+  if (!username) return null;
+  const normalized = String(username).trim().toUpperCase();
+  return Object.keys(USERS).find(key => key.toUpperCase() === normalized) || null;
+}
+function getAuthUser(){ return localStorage.getItem(AUTH_KEY); }
+function getAuthRole(){
+  const user = getAuthUser();
+  const key = findUserKey(user);
+  return key ? USERS[key].role : null;
+}
+function isLimitedUser(){
+  return getAuthRole() === 'limited';
+}
+function isAuthenticated(){
+  const user = getAuthUser();
+  const key = findUserKey(user);
+  return !!key && !isSessionExpired();
+}
 function isSessionExpired(){
   const last = Number(localStorage.getItem(AUTH_LAST_ACTIVITY));
   return !last || (Date.now() - last) > AUTH_TIMEOUT_MS;
 }
 function updateLastActivity(){
-  if (localStorage.getItem(AUTH_KEY) === AUTH_USER){
+  const user = getAuthUser();
+  if (findUserKey(user)){
     localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
   }
 }
@@ -5645,6 +5651,7 @@ function destroyCharts(){
 function buildNav(){
   const nav = document.getElementById('nav');
   const stockBajoTotal = SUPPLIERS.reduce((a,s)=>a+stockBajoCount(s),0);
+  const currentRole = getAuthRole();
   const generalItems = [
     {id:'dashboard', label:'Dashboard general', icon:'▣'},
     {id:'ventas', label:'Ventas', icon:'↗'},
@@ -5655,6 +5662,7 @@ function buildNav(){
   ];
   let html = '<div class="nav-section"><div class="nav-label">General</div>';
   generalItems.forEach(it => {
+    if (currentRole === 'limited' && (it.id === 'precios' || it.id === 'new-supplier')) return;
     html += navItemHTML(it.id, it.label, it.tag);
   });
   html += '</div>';
@@ -5705,11 +5713,12 @@ function buildTopbar(){
   const userBox = document.getElementById('userBox');
   if (userBox){
     if (isAuthenticated()){
+      const authUser = getAuthUser();
       userBox.innerHTML = `
         <div class="user-dropdown">
           <button class="user-menu-btn" id="userMenuToggle">
             <span class="user-icon">👤</span>
-            <span class="user-name">${esc(AUTH_USER)}</span>
+            <span class="user-name">${esc(authUser)}</span>
             <span class="menu-caret">▼</span>
           </button>
           <div class="user-menu-content" id="userMenuContent">
@@ -5896,6 +5905,16 @@ function render(){
   updateLastActivity();
   document.getElementById('sidebar').style.display = 'block';
   document.getElementById('topbar').style.display = 'flex';
+
+  const currentRole = getAuthRole();
+  const restrictedRoutes = ['precios', 'new-supplier'];
+  const restrictedPrefixes = ['sup-lotes:', 'sup-inactivos:'];
+  if (currentRole === 'limited' && (restrictedRoutes.includes(route) || restrictedPrefixes.some(prefix => route.startsWith(prefix)))){
+    route = 'dashboard';
+    window.location.hash = 'dashboard';
+    showToast('info', 'Acceso restringido', 'No tienes permiso para acceder a esa sección.');
+  }
+
   if (route.startsWith('search:')){
     destroyCharts();
     setActiveNav('__none__');
@@ -5910,7 +5929,11 @@ function render(){
   setActiveNav(route);
   destroyCharts();
   if (route === 'dashboard') content.innerHTML = viewDashboard();
-  else if (route === 'ventas') content.innerHTML = viewVentas();
+  else if (route === 'ventas') {
+    content.innerHTML = viewVentas();
+    attachVentasBehavior();
+    return;
+  }
   else if (route === 'stockbajo') content.innerHTML = viewStockBajo();
   else if (route === 'cambio') content.innerHTML = viewCambio();
   else if (route === 'precios') {
@@ -5979,11 +6002,12 @@ function attachLoginBehavior(){
   const passInput = document.getElementById('loginPass');
   if (!loginBtn || !userInput || !passInput) return;
   const tryLogin = () => {
-    const user = userInput.value.trim();
+    const enteredUser = userInput.value.trim();
+    const userKey = findUserKey(enteredUser);
     const pass = passInput.value.trim();
-    if (user === AUTH_USER && pass === AUTH_PASS){
-      localStorage.setItem(AUTH_KEY, AUTH_USER);
-      updateLastActivity();
+    if (userKey && pass === USERS[userKey].password){
+      localStorage.setItem(AUTH_KEY, userKey);
+      localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
       window.location.hash = 'dashboard';
       buildNav(); buildTopbar(); render();
     } else {
@@ -5997,7 +6021,7 @@ function attachLoginBehavior(){
 
 function setupAuthActivityWatcher(){
   const refresh = () => {
-    if (localStorage.getItem(AUTH_KEY) === AUTH_USER){
+    if (isAuthenticated()){
       updateLastActivity();
     }
   };
@@ -6006,7 +6030,7 @@ function setupAuthActivityWatcher(){
   });
 
   setInterval(() => {
-    if (localStorage.getItem(AUTH_KEY) === AUTH_USER && isSessionExpired()){
+    if (isAuthenticated() && isSessionExpired()){
       clearAuth();
       if (window.location.hash !== '#login'){
         window.location.hash = 'login';
@@ -6358,8 +6382,23 @@ function viewStockBajo(){
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr><th>Producto</th><th>Empresa</th><th>Contenido</th><th class="num">Stock</th><th class="num">Precio sistema</th><th class="num">Diferencia</th></tr></thead>
-          <tbody>${detailRows || '<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">Sin registros</td></tr>'}</tbody>
+          <tbody id="stockBajoTableBody">${detailRows || '<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">Sin registros</td></tr>'}</tbody>
         </table>
+      </div>
+      <div class="pagination-footer">
+        <div class="pagination-info">Mostrando página <strong id="stockBajoPageNumber">1</strong> de <strong id="stockBajoTotalPages">1</strong></div>
+        <div class="pagination-controls">
+          <button class="btn-secondary" id="stockBajoPrevBtn">← Anterior</button>
+          <button class="btn-secondary" id="stockBajoNextBtn">Siguiente →</button>
+          <div class="page-size-selector">
+            <label for="stockBajoPageSize">Mostrar</label>
+            <select id="stockBajoPageSize">
+              <option value="15" selected>15 / pág</option>
+              <option value="30">30 / pág</option>
+              <option value="50">50 / pág</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -6367,8 +6406,88 @@ function viewStockBajo(){
 
 function attachStockBajoBehavior(){
   const pdfBtn = document.getElementById('downloadStockBajoPDF');
-  if (!pdfBtn) return;
-  pdfBtn.addEventListener('click', downloadStockBajoPDF);
+  const prevBtn = document.getElementById('stockBajoPrevBtn');
+  const nextBtn = document.getElementById('stockBajoNextBtn');
+  const pageSizeSelect = document.getElementById('stockBajoPageSize');
+  const pageNumber = document.getElementById('stockBajoPageNumber');
+  const totalPagesEl = document.getElementById('stockBajoTotalPages');
+  const tableBody = document.getElementById('stockBajoTableBody');
+
+  if (!tableBody) return;
+  if (pdfBtn) pdfBtn.addEventListener('click', downloadStockBajoPDF);
+
+  let currentPage = 1;
+  let pageSize = parseInt(pageSizeSelect?.value, 10) || 15;
+
+  function getAllLow(){
+    const list = [];
+    SUPPLIERS.forEach((s, idx) => {
+      s.products.forEach(p => {
+        if ((p.estadoStock||'').toUpperCase().includes('BAJO')){
+          list.push({
+            producto: p.producto || '—',
+            empresa: s.name,
+            contenido: p.contenido || '—',
+            stock: fmtN(p.stock,0),
+            precioSistema: fmtS(p.precioSistema),
+            diferencia: fmtN(p.diferencia,3),
+            supIdx: idx
+          });
+        }
+      });
+    });
+    return list;
+  }
+
+  function renderPage(){
+    const rows = getAllLow();
+    const totalItems = rows.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const paged = rows.slice(start, start + pageSize);
+
+    tableBody.innerHTML = paged.map(p => `
+      <tr>
+        <td class="prod-name">${esc(p.producto)}</td>
+        <td><a href="#sup:${p.supIdx}">${esc(p.empresa)}</a></td>
+        <td>${esc(p.contenido)}</td>
+        <td class="num">${p.stock}</td>
+        <td class="num">${p.precioSistema}</td>
+        <td class="num neg">${p.diferencia}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:20px;">Sin registros</td></tr>`;
+
+    if (pageNumber) pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
+    if (totalPagesEl) totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+  }
+
+  if (pageSizeSelect){
+    pageSizeSelect.addEventListener('change', (e) => {
+      pageSize = parseInt(e.target.value, 10) || 15;
+      currentPage = 1;
+      renderPage();
+    });
+  }
+
+  if (prevBtn){
+    prevBtn.addEventListener('click', () => {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      renderPage();
+    });
+  }
+
+  if (nextBtn){
+    nextBtn.addEventListener('click', () => {
+      currentPage += 1;
+      renderPage();
+    });
+  }
+
+  renderPage();
 }
 
 function downloadStockBajoPDF(){
@@ -6775,8 +6894,13 @@ const ICON_DELETE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none"
 const ICON_LOTS = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><path d="M3 10v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10"/><path d="M12 4v6"/></svg>`;
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>`;
 
-function cellHTML(col, val, pi){
+function cellHTML(col, val, pi, restricted = false){
   if (col.type === 'actions'){
+    if (restricted){
+      return `<td class="actions-cell">
+        <button class="icon-btn detail-btn" data-pi="${pi}" title="Ver detalles" aria-label="Ver detalles">${ICON_EYE}</button>
+      </td>`;
+    }
     return `<td class="actions-cell">
       <button class="icon-btn detail-btn" data-pi="${pi}" title="Ver detalles" aria-label="Ver detalles">${ICON_EYE}</button>
       <button class="icon-btn edit-btn" data-pi="${pi}" title="Editar producto" aria-label="Editar producto">${ICON_EDIT}</button>
@@ -6811,8 +6935,9 @@ function viewSupplier(s, idx){
   const bajo = stockBajoCount(s);
   const optimo = s.products.length - bajo;
   const inactiveCount = (s.inactiveProducts || []).length;
+  const restricted = isLimitedUser();
 
-  const rows = s.products.map((p,pi) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('');
+  const rows = s.products.map((p,pi) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi, restricted)).join('')}</tr>`).join('');
 
   const inactiveRows = (s.inactiveProducts || []).map((p,pi) => `
     <tr>
@@ -6830,7 +6955,7 @@ function viewSupplier(s, idx){
       <div class="eyebrow">Proveedor · <span class="badge-schema">esquema ${s.schema}</span></div>
       <div class="view-title">${esc(s.name)}</div>
       <div class="view-desc">Reporte generado el ${ (s.meta.fechaReporte||'').slice(0,10) || '—' }. Tipo de cambio comercial ${fmtN(s.meta.tcComercial,2)} · SUNAT ${fmtN(s.meta.tcSunat,2)}.</div>
-      <button class="btn-secondary" id="editSupplierSchemaBtn">Editar esquema</button>
+      ${restricted ? '' : '<button class="btn-secondary" id="editSupplierSchemaBtn">Editar esquema</button>'}
     </div>
 
     <div class="kpi-grid">
@@ -6878,8 +7003,8 @@ function viewSupplier(s, idx){
             <span>⌕</span>
             <input id="supSearch" placeholder="Filtrar producto…" />
           </div>
-          <button class="btn-secondary" id="viewInactiveBtn">Ver inactivos (${inactiveCount})</button>
-          <button class="btn-primary" id="addProductBtn">+ Agregar producto</button>
+          ${restricted ? '' : `<button class="btn-secondary" id="viewInactiveBtn">Ver inactivos (${inactiveCount})</button>`}
+          ${restricted ? '' : '<button class="btn-primary" id="addProductBtn">+ Agregar producto</button>'}
         </div>
       </div>
       <div class="table-scroll">
@@ -7770,7 +7895,8 @@ function attachSupplierBehavior(idx){
     const start = (currentPage - 1) * pageSize;
     const pagedItems = items.slice(start, start + pageSize);
 
-    tbody.innerHTML = pagedItems.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('')
+    const restricted = isLimitedUser();
+    tbody.innerHTML = pagedItems.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi, restricted)).join('')}</tr>`).join('')
       || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-faint);padding:20px;">Sin resultados</td></tr>`;
 
     if (pageNumber) pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
@@ -7826,7 +7952,8 @@ function attachSupplierBehavior(idx){
     });
   });
 
-  if (editSchemaBtn){
+  const restricted = isLimitedUser();
+  if (!restricted && editSchemaBtn){
     editSchemaBtn.addEventListener('click', () => {
       openSupplierSchemaModal(s, idx, () => {
         buildNav(); buildTopbar(); render();
@@ -7834,13 +7961,13 @@ function attachSupplierBehavior(idx){
     });
   }
 
-  if (viewInactiveBtn) {
+  if (!restricted && viewInactiveBtn) {
     viewInactiveBtn.addEventListener('click', () => {
       window.location.hash = `sup-inactivos:${idx}`;
     });
   }
 
-  if (addProductBtn) {
+  if (!restricted && addProductBtn) {
     addProductBtn.addEventListener('click', () => {
       openAddProductModal(s, idx, () => {
         buildNav(); buildTopbar(); render();
@@ -7857,9 +7984,13 @@ function attachSupplierBehavior(idx){
     const deleteBtn = e.target.closest('.delete-btn');
     const restoreBtn = e.target.closest('.restore-btn');
 
+    const restricted = isLimitedUser();
     if (detailBtn){
       const pi = parseInt(detailBtn.dataset.pi, 10);
       openProductDetailModal(s, pi);
+    } else if (restricted && (editBtn || lotBtn || deleteBtn)){
+      showToast('warning', 'Acceso restringido', 'No tienes permiso para esta acción.');
+      return;
     } else if (editBtn){
       const pi = parseInt(editBtn.dataset.pi, 10);
       openProductEditModal(s, idx, pi, applyAndRender);
