@@ -8,6 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
@@ -5349,6 +5351,19 @@ const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
 const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
 const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyAbq4IrgvjuQVZgmcyieOPrTomP_kTpar4',
+  authDomain: 'basededatos-88a57.firebaseapp.com',
+  projectId: 'basededatos-88a57',
+  storageBucket: 'basededatos-88a57.firebasestorage.app',
+  messagingSenderId: '94353855766',
+  appId: '1:94353855766:web:6efa2a9ecafe7cd05b6c37',
+  measurementId: 'G-KG8PRK3ZNP'
+};
+let FIREBASE_ENABLED = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY');
+const FIRESTORE_COLLECTION = 'agromin_states';
+let FIREBASE_INITIALIZED = false;
+let FIREBASE_DB = null;
 const USERS = {
   AGROMIN: { password: '123', role: 'admin' },
   SOLUCIONES: { password: '123', role: 'limited' }
@@ -5465,11 +5480,64 @@ function loadPersistedData(){
   } catch (e) {}
   return normalizeData(BASE_DATA);
 }
+function initFirebase(){
+  if (!FIREBASE_ENABLED || FIREBASE_INITIALIZED) return;
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    FIREBASE_DB = firebase.firestore();
+    FIREBASE_INITIALIZED = true;
+  } catch (e){
+    FIREBASE_ENABLED = false;
+    console.warn('Firebase init failed:', e);
+  }
+}
+
+function getRemoteStateDoc(userKey){
+  if (!FIREBASE_INITIALIZED || !userKey) return null;
+  return FIREBASE_DB.collection(FIRESTORE_COLLECTION).doc(userKey);
+}
+
+async function loadRemoteState(userKey){
+  if (!FIREBASE_ENABLED || !userKey) return null;
+  initFirebase();
+  const doc = getRemoteStateDoc(userKey);
+  if (!doc) return null;
+  try{
+    const snapshot = await doc.get();
+    if (!snapshot.exists) return null;
+    const data = snapshot.data();
+    if (!data || !data.state) return null;
+    return normalizeData(data.state);
+  } catch (e){
+    console.warn('Remote load failed:', e);
+    return null;
+  }
+}
+
+async function saveRemoteState(userKey){
+  if (!FIREBASE_ENABLED || !userKey) return;
+  initFirebase();
+  const doc = getRemoteStateDoc(userKey);
+  if (!doc) return;
+  try{
+    await doc.set({
+      state: DATA,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e){
+    console.warn('Remote save failed:', e);
+  }
+}
+
 function saveState(){
   try{
     const payload = JSON.stringify(DATA);
     localStorage.setItem(STORAGE_KEY, payload);
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
+    const userKey = getAuthUser();
+    if (userKey && !isSessionExpired()){
+      saveRemoteState(userKey);
+    }
   } catch(e) {}
 }
 function showToast(icon, title, text=''){
@@ -5528,6 +5596,18 @@ function registerProductSale(s, product, cantidad, nota = ''){
 
 let DATA = loadPersistedData();
 let SUPPLIERS = DATA.suppliers;
+async function loadUserStateOnInit(){
+  if (!FIREBASE_ENABLED) return;
+  const userKey = getAuthUser();
+  if (!userKey || isSessionExpired()) return;
+  const remote = await loadRemoteState(userKey);
+  if (remote){
+    DATA = remote;
+    SUPPLIERS = DATA.suppliers;
+    saveState();
+  }
+}
+
 // Remove supplier named 'Villafuerte' (if present) per user request
 try{
   const idxVill = (DATA.suppliers||[]).findIndex(s => (s.name||'').toLowerCase().includes('villafuerte'));
@@ -6035,8 +6115,19 @@ function attachLoginBehavior(){
     if (userKey && pass === USERS[userKey].password){
       localStorage.setItem(AUTH_KEY, userKey);
       localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
-      window.location.hash = 'dashboard';
-      buildNav(); buildTopbar(); render();
+      const next = async () => {
+        if (FIREBASE_ENABLED){
+          const remote = await loadRemoteState(userKey);
+          if (remote){
+            DATA = remote;
+            SUPPLIERS = DATA.suppliers;
+            saveState();
+          }
+        }
+        window.location.hash = 'dashboard';
+        buildNav(); buildTopbar(); render();
+      };
+      next();
     } else {
       Swal.fire({ title: 'Acceso denegado', text: 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
     }
@@ -8191,11 +8282,15 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 });
 
 /* ---------------------------- INIT ---------------------------- */
-initialRecalc();
-buildNav();
-buildTopbar();
-setupAuthActivityWatcher();
-render();
+(async () => {
+  if (FIREBASE_ENABLED) initFirebase();
+  await loadUserStateOnInit();
+  initialRecalc();
+  buildNav();
+  buildTopbar();
+  setupAuthActivityWatcher();
+  render();
+})();
 
 </script>
 </body>
