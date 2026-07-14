@@ -6264,7 +6264,6 @@ function render(){
     const idx = parseInt(route.split(':')[1], 10);
     content.innerHTML = viewSupplier(SUPPLIERS[idx], idx);
     attachSupplierBehavior(idx);
-    attachSupplierCharts(SUPPLIERS[idx]);
     attachGastosPanel(SUPPLIERS[idx]);
     return;
   } else {
@@ -7480,17 +7479,6 @@ function viewSupplier(s, idx){
       </div>
     </div>
 
-    <div class="chart-row">
-      <div class="panel">
-        <div class="panel-title">Top 8 productos por monto bruto <span class="hint">S/.</span></div>
-        <div class="chart-wrap small"><canvas id="chartSupTop"></canvas></div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">Estado del inventario</div>
-        <div class="chart-wrap small"><canvas id="chartSupStock"></canvas></div>
-      </div>
-    </div>
-
     <div class="panel">
       <div class="panel-title">Catálogo de productos <span class="hint">${s.products.length} registros</span></div>
       <div class="table-toolbar">
@@ -7544,58 +7532,6 @@ function viewSupplier(s, idx){
       <button class="btn-add-gasto" id="addGastoBtn">+ Agregar gasto</button>
     </div>
   `;
-}
-
-function attachSupplierCharts(s){
-  const moneyKey = s.schema === 'SOLES' ? 'montoBrutoSoles' : 'montoBrutoSoles';
-  const top = [...s.products]
-    .sort((a,b)=>(b[moneyKey]||0)-(a[moneyKey]||0))
-    .slice(0,8);
-  const ctxTop = document.getElementById('chartSupTop');
-  if (ctxTop){
-    chartInstances.supTop = new Chart(ctxTop, {
-      type:'bar',
-      data:{
-        labels: top.map(p => (p.producto||'').length > 22 ? p.producto.slice(0,20)+'…' : p.producto),
-        datasets:[{ data: top.map(p=>p[moneyKey]||0), backgroundColor:'rgba(39,110,110,0.45)', borderColor:'#276e6e', borderWidth:1, borderRadius:3 }]
-      },
-      options:{
-        animation: false,
-        animations: false,
-        transitions: {},
-        indexAxis:'y',
-        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>fmtS(c.parsed.x) } } },
-        scales:{
-          x:{ ticks:{color:'#56695a', font:{family:'IBM Plex Mono', size:10}}, grid:{color:'rgba(28,42,31,0.08)'} },
-          y:{ ticks:{color:'#1c2a1f', font:{family:'IBM Plex Mono', size:10}}, grid:{display:false} }
-        }
-      }
-    });
-  }
-  let optimo=0, bajo=0, otro=0;
-  s.products.forEach(p => {
-    const e = (p.estadoStock||'').toUpperCase();
-    if (e.includes('BAJO')) bajo++;
-    else if (e.includes('OPTIM') || e.includes('ÓPTIM')) optimo++;
-    else otro++;
-  });
-  const ctxStock = document.getElementById('chartSupStock');
-  if (ctxStock){
-    chartInstances.supStock = new Chart(ctxStock, {
-      type:'doughnut',
-      data:{
-        labels:['Óptimo','Stock bajo','Otro / S.P.'],
-        datasets:[{ data:[optimo,bajo,otro], backgroundColor:['#3c7a2e','#b8761e','#276e6e'], borderColor:'#ffffff', borderWidth:3 }]
-      },
-      options:{
-        animation: false,
-        animations: false,
-        transitions: {},
-        plugins:{ legend:{ position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } },
-        cutout:'62%'
-      }
-    });
-  }
 }
 
 /* ---------------------------- MODAL (ver detalles / editar producto) ---------------------------- */
