@@ -16,17 +16,35 @@ const envCandidates = {
   ATLAS_URI: process.env.ATLAS_URI,
   RAILWAY_MONGODB_URI: process.env.RAILWAY_MONGODB_URI,
 };
-const MONGO_URI = envCandidates.MONGO_DIRECT_URI || envCandidates.MONGODB_URI || envCandidates.DATABASE_URL || envCandidates.MONGO_URL || envCandidates.MONGODB_URL || envCandidates.ATLAS_URI || envCandidates.RAILWAY_MONGODB_URI;
+
+function findMongoUriFromEnv() {
+  const mongodbRegex = /^mongodb(?:\+srv)?:\/\//i;
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string' && mongodbRegex.test(value)) {
+      console.log(`Detected MongoDB URI from env var: ${key}`);
+      return { key, value };
+    }
+  }
+  return null;
+}
+
+const detectedMongo = findMongoUriFromEnv();
+const MONGO_URI = envCandidates.MONGO_DIRECT_URI || envCandidates.MONGODB_URI || envCandidates.DATABASE_URL || envCandidates.MONGO_URL || envCandidates.MONGODB_URL || envCandidates.ATLAS_URI || envCandidates.RAILWAY_MONGODB_URI || detectedMongo?.value;
 const DB_NAME = process.env.DB_NAME || 'agromin';
 const COLLECTION_NAME = process.env.COLLECTION_NAME || 'states';
 
 if (!MONGO_URI) {
-  console.error('ERROR: MongoDB connection string is not configured. Set one of the supported env vars.');
+  console.error('ERROR: MongoDB connection string is not configured. Set one of the supported env vars or add a MongoDB URI as any environment variable.');
   console.error('Supported keys:', Object.keys(envCandidates).join(', '));
   console.error('Loaded env path:', path.join(__dirname, '.env'));
   Object.entries(envCandidates).forEach(([key, value]) => {
     console.error(`${key}:`, value ? '[SET]' : '[UNDEFINED]');
   });
+  if (detectedMongo) {
+    console.error(`Detected candidate env var: ${detectedMongo.key}`);
+  } else {
+    console.error('No MongoDB URI-like value found in environment variables.');
+  }
   process.exit(1);
 }
 
