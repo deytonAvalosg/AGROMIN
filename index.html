@@ -5551,23 +5551,24 @@ function saveState(){
   } catch(e){}
 
   setSyncStatus('saving');
-  /* Debounce: espera 800 ms sin nuevos cambios antes de subir a la nube */
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
+    _isSavingToCloud = true;
     try{
       const ts = new Date().toISOString();
       await _supa.from('agromin_state').upsert(
         { id: CLOUD_ROW_ID, data: DATA, updated_at: ts },
         { onConflict: 'id' }
       );
-      _lastCloudTs = ts; // marcar como mi propio save para que el polling no lo re-aplique
+      _lastCloudTs = ts;
       setSyncStatus('ok');
     } catch(e){
       console.warn('Supabase save error:', e);
       setSyncStatus('error');
     }
+    _isSavingToCloud = false;
     _saveTimer = null;
-  }, 800);
+  }, 600);
 }
 
 /* Carga desde la nube y re-renderiza si hay datos más nuevos */
@@ -5619,6 +5620,7 @@ function setSyncStatus(state){
 let _realtimeChannel = null;
 let _pollInterval    = null;
 let _lastCloudTs     = null; // timestamp del último dato aplicado desde la nube
+let _isSavingToCloud = false; // true solo mientras el upsert está en vuelo
 
 function applyCloudPayload(rawData){
   try{
@@ -5644,39 +5646,43 @@ function applyCloudPayload(rawData){
   } catch(e){ return false; }
 }
 
-/* Polling cada 4 s — compara updated_at para solo aplicar si hay cambio real */
+async function pollOnce(){
+  if (!isAuthenticated()) return;
+  if (_isSavingToCloud) return; // esperar a que termine mi propio save
+  try{
+    const { data: row, error } = await _supa
+      .from('agromin_state')
+      .select('data, updated_at')
+      .eq('id', CLOUD_ROW_ID)
+      .single();
+
+    if (error || !row) return;
+
+    const cloudTs = row.updated_at;
+    if (cloudTs && cloudTs !== _lastCloudTs){
+      const applied = applyCloudPayload(row.data);
+      if (applied){
+        _lastCloudTs = cloudTs;
+        showToast('info', '🔄 Sincronizado', 'Datos actualizados desde otro dispositivo.');
+      }
+    }
+  } catch(e){ /* silencioso */ }
+}
+
+/* Polling cada 2 s */
 function startPolling(){
   if (_pollInterval) return;
-  _pollInterval = setInterval(async () => {
-    /* Solo sondear si el usuario está autenticado */
-    if (!isAuthenticated()) return;
-    try{
-      const { data: row, error } = await _supa
-        .from('agromin_state')
-        .select('data, updated_at')
-        .eq('id', CLOUD_ROW_ID)
-        .single();
-
-      if (error || !row) return;
-
-      const cloudTs = row.updated_at;
-      /* Si el timestamp cambió (otro dispositivo guardó) → aplicar */
-      if (cloudTs && cloudTs !== _lastCloudTs){
-        /* Evitar aplicar mis propios saves: si _saveTimer está activo soy yo quien guardó */
-        if (_saveTimer) return;
-        const applied = applyCloudPayload(row.data);
-        if (applied){
-          _lastCloudTs = cloudTs;
-          showToast('info', '🔄 Sincronizado', 'Datos actualizados desde otro dispositivo.');
-        }
-      }
-    } catch(e){ /* silencioso */ }
-  }, 4000);
+  _pollInterval = setInterval(pollOnce, 2000);
 }
 
 function startRealtimeSync(){
-  /* Arrancar polling inmediato — funciona sin configuración extra */
   startPolling();
+
+  /* Sincronizar inmediatamente cuando el usuario vuelve a la pestaña/app */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pollOnce();
+  });
+  window.addEventListener('focus', pollOnce);
 
   /* Intentar también Realtime WebSocket como canal adicional */
   if (_realtimeChannel) return;
@@ -5692,7 +5698,7 @@ function startRealtimeSync(){
           const newData = payload.new?.data;
           const newTs   = payload.new?.updated_at;
           if (!newData || newTs === _lastCloudTs) return;
-          if (_saveTimer) return; // soy yo quien guardó
+          if (_isSavingToCloud) return;
           const applied = applyCloudPayload(newData);
           if (applied){
             _lastCloudTs = newTs;
