@@ -5567,6 +5567,7 @@ function saveState(){
         { onConflict: 'id' }
       );
       _lastCloudTs = ts;
+      try{ localStorage.setItem('agromin_cloud_ts', ts); } catch(e){}
     } catch(e){ /* silencioso */ }
     _isSavingToCloud = false;
     _saveTimer = null;
@@ -5584,21 +5585,31 @@ async function loadCloudData(){
 
     if (error || !row || !row.data) return;
 
-    _lastCloudTs = row.updated_at;
+    /* Guardar el timestamp base — el polling lo usará como referencia */
+    const incomingTs = row.updated_at;
 
-    /* Comparar con lo que ya tenemos: si los datos son iguales, no re-renderizar */
-    const currentJson = JSON.stringify(DATA);
-    const normalized  = cleanupLoadedSuppliers(normalizeData(row.data));
-    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return;
+    const normalized = cleanupLoadedSuppliers(normalizeData(row.data));
+    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0){
+      _lastCloudTs = incomingTs;
+      return;
+    }
 
-    const cloudJson = JSON.stringify(normalized);
-    if (cloudJson === currentJson) return; /* Sin cambios — no parpadear */
+    /* Comparar solo timestamps: si localStorage ya tenía estos datos, no re-renderizar */
+    const localTs = localStorage.getItem('agromin_cloud_ts');
+    if (localTs && localTs === incomingTs){
+      _lastCloudTs = incomingTs; /* mismos datos que ya tenemos */
+      return;
+    }
 
     DATA      = normalized;
     SUPPLIERS = DATA.suppliers;
+    _lastCloudTs = incomingTs;
+
     try{
-      localStorage.setItem(STORAGE_KEY,        cloudJson);
-      localStorage.setItem(STORAGE_BACKUP_KEY, cloudJson);
+      const j = JSON.stringify(normalized);
+      localStorage.setItem(STORAGE_KEY,        j);
+      localStorage.setItem(STORAGE_BACKUP_KEY, j);
+      localStorage.setItem('agromin_cloud_ts', incomingTs);
     } catch(e){}
 
     initialRecalc();
@@ -5626,28 +5637,24 @@ let _realtimeChannel = null;
 let _pollInterval    = null;
 let _lastCloudTs     = null;
 
-/* Aplica datos de la nube SIN re-renderizar si el contenido es idéntico */
+/* Aplica datos de la nube — solo se llama cuando updated_at es distinto al último conocido */
 function applyCloudPayload(rawData, cloudTs){
   try{
     if (!rawData) return false;
     const normalized = cleanupLoadedSuppliers(normalizeData(rawData));
     if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return false;
 
-    const cloudJson   = JSON.stringify(normalized);
-    const currentJson = JSON.stringify(DATA);
-    if (cloudJson === currentJson){
-      _lastCloudTs = cloudTs; /* actualizar ts aunque no haya cambio visual */
-      return false;           /* sin re-render */
-    }
-
     DATA      = normalized;
     SUPPLIERS = DATA.suppliers;
+
     try{
-      localStorage.setItem(STORAGE_KEY,        cloudJson);
-      localStorage.setItem(STORAGE_BACKUP_KEY, cloudJson);
+      const j = JSON.stringify(normalized);
+      localStorage.setItem(STORAGE_KEY,        j);
+      localStorage.setItem(STORAGE_BACKUP_KEY, j);
     } catch(e){}
 
     _lastCloudTs = cloudTs;
+    try{ localStorage.setItem('agromin_cloud_ts', cloudTs); } catch(e){}
     initialRecalc();
     buildNav();
     buildTopbar();
@@ -5660,20 +5667,33 @@ async function pollOnce(){
   if (!isAuthenticated()) return;
   if (_isSavingToCloud)   return;
   try{
+    /* Solo traer updated_at primero — sin descargar el payload completo */
     const { data: row, error } = await _supa
+      .from('agromin_state')
+      .select('updated_at')
+      .eq('id', CLOUD_ROW_ID)
+      .single();
+
+    if (error || !row) return;
+    /* Si el timestamp no cambió → no hacer absolutamente nada */
+    if (!row.updated_at || row.updated_at === _lastCloudTs) return;
+
+    /* Solo ahora traer los datos completos */
+    const { data: full, error: err2 } = await _supa
       .from('agromin_state')
       .select('data, updated_at')
       .eq('id', CLOUD_ROW_ID)
       .single();
 
-    if (error || !row) return;
-    if (!row.updated_at || row.updated_at === _lastCloudTs) return; /* sin cambio */
+    if (err2 || !full) return;
+    /* Doble check: evitar race condition donde justo terminó un save propio */
+    if (_isSavingToCloud) return;
 
-    applyCloudPayload(row.data, row.updated_at);
+    applyCloudPayload(full.data, full.updated_at);
   } catch(e){ /* silencioso */ }
 }
 
-/* Polling cada 3 s — equilibrio entre velocidad y estabilidad */
+/* Polling cada 3 s */
 function startPolling(){
   if (_pollInterval) return;
   _pollInterval = setInterval(pollOnce, 3000);
@@ -5687,7 +5707,7 @@ function startRealtimeSync(){
     if (document.visibilityState === 'visible') pollOnce();
   });
 
-  /* Realtime WebSocket como canal adicional (si Supabase lo tiene habilitado) */
+  /* Realtime WebSocket como canal adicional */
   if (_realtimeChannel) return;
   try{
     _realtimeChannel = _supa
