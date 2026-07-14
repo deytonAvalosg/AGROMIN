@@ -5570,13 +5570,21 @@ function saveState(){
   _saveTimer = setTimeout(async () => {
     try{
       const ts = new Date().toISOString();
-      await _supa.from('agromin_state').upsert(
+      const { error } = await _supa.from('agromin_state').upsert(
         { id: CLOUD_ROW_ID, data: DATA, updated_at: ts },
         { onConflict: 'id' }
       );
-      _lastCloudTs = ts;
-      try{ localStorage.setItem('agromin_cloud_ts', ts); } catch(e){}
-    } catch(e){ /* silencioso */ }
+      if (error){
+        console.error('Supabase save error:', error);
+        showToast('error', '⚠ Error al guardar', error.message || 'No se pudo guardar en la nube.');
+      } else {
+        _lastCloudTs = ts;
+        try{ localStorage.setItem('agromin_cloud_ts', ts); } catch(e){}
+      }
+    } catch(e){
+      console.error('saveState exception:', e);
+      showToast('error', '⚠ Error al guardar', 'Sin conexión con la nube.');
+    }
     _isSavingToCloud = false;
     _saveTimer = null;
   }, 600);
