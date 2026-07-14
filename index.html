@@ -5663,7 +5663,6 @@ async function pollOnce(){
       const applied = applyCloudPayload(row.data);
       if (applied){
         _lastCloudTs = cloudTs;
-        showToast('info', '🔄 Sincronizado', 'Datos actualizados desde otro dispositivo.');
       }
     }
   } catch(e){ /* silencioso */ }
@@ -5702,7 +5701,6 @@ function startRealtimeSync(){
           const applied = applyCloudPayload(newData);
           if (applied){
             _lastCloudTs = newTs;
-            showToast('info', '🔄 Sincronizado', 'Datos actualizados desde otro dispositivo.');
           }
         } catch(e){}
       })
