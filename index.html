@@ -5346,7 +5346,7 @@ function esc(s){
 }
 
 /* ====================== SUPABASE CONFIG ====================== */
-const SUPABASE_URL = 'https://0j2jMZGhRkhIvjZj2kTqvw.supabase.co';
+const SUPABASE_URL = 'https://aexpqfvjbbytmiuknriz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_0j2jMZGhRkhIvjZj2kTqvw_hU3Qklpq';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -5481,32 +5481,6 @@ async function saveToCloud(){
   } catch(e){ console.warn('Cloud save exception:', e); }
 }
 
-// Indicador visual de sincronización
-function showSyncIndicator(status){
-  let el = document.getElementById('syncIndicator');
-  if (!el){
-    el = document.createElement('span');
-    el.id = 'syncIndicator';
-    el.style.cssText = 'font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:999px;margin-left:8px;transition:all .3s;';
-    const ticker = document.getElementById('ticker');
-    if (ticker) ticker.appendChild(el);
-  }
-  if (status === 'saving'){
-    el.textContent = '⟳ Guardando…';
-    el.style.background = 'rgba(184,118,30,0.12)';
-    el.style.color = 'var(--amber)';
-  } else if (status === 'ok'){
-    el.textContent = '✓ Sincronizado';
-    el.style.background = 'rgba(60,122,46,0.1)';
-    el.style.color = 'var(--lime)';
-    setTimeout(() => { if (el) el.textContent = ''; }, 2500);
-  } else if (status === 'error'){
-    el.textContent = '⚠ Sin conexión (guardado local)';
-    el.style.background = 'rgba(171,58,44,0.1)';
-    el.style.color = 'var(--rust)';
-    setTimeout(() => { if (el) el.textContent = ''; }, 4000);
-  }
-}
 function ensureProductIdentity(product, supplierName, index){
   if (!product._uid) product._uid = `${supplierName}-${index}-${Math.random().toString(36).slice(2,8)}`;
   if (product.isActive === undefined) product.isActive = true;
@@ -5590,8 +5564,7 @@ function saveState(){
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
   } catch(e) {}
   // Sincronizar con la nube de forma asíncrona
-  showSyncIndicator('saving');
-  saveToCloud().then(() => showSyncIndicator('ok')).catch(() => showSyncIndicator('error'));
+  saveToCloud().catch(() => {});
 }
 function showToast(icon, title, text=''){
   Swal.fire({
