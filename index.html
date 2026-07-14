@@ -8,9 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
@@ -5386,20 +5383,8 @@ const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
 const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
 const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
-const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyAbq4IrgvjuQVZgmcyieOPrTomP_kTpar4',
-  authDomain: 'basededatos-88a57.firebaseapp.com',
-  projectId: 'basededatos-88a57',
-  storageBucket: 'basededatos-88a57.firebasestorage.app',
-  messagingSenderId: '94353855766',
-  appId: '1:94353855766:web:6efa2a9ecafe7cd05b6c37',
-  measurementId: 'G-KG8PRK3ZNP'
-};
-let FIREBASE_ENABLED = true;
-const FIRESTORE_COLLECTION = 'agromin_states';
-let FIREBASE_INITIALIZED = false;
-let FIREBASE_DB = null;
-let FIREBASE_AUTH = null;
+const MONGO_ENABLED = true;
+const MONGO_API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:3000';
 const USERS = {
   AGROMIN: { password: '123', role: 'admin' },
   SOLUCIONES: { password: '123', role: 'limited' }
@@ -5516,71 +5501,27 @@ function loadPersistedData(){
   } catch (e) {}
   return normalizeData(BASE_DATA);
 }
-function initFirebase(){
-  if (!FIREBASE_ENABLED || FIREBASE_INITIALIZED) return;
-  try{
-    if (!firebase.apps.length){
-      firebase.initializeApp(FIREBASE_CONFIG);
-    }
-    FIREBASE_DB = firebase.firestore();
-    FIREBASE_AUTH = firebase.auth ? firebase.auth() : null;
-    FIREBASE_INITIALIZED = true;
-    console.log('Firebase initialized successfully');
-  } catch (e){
-    FIREBASE_ENABLED = false;
-    console.warn('Firebase init failed:', e);
-    showToast('error', 'Firebase init falló', e.message || 'No se pudo inicializar Firebase.');
-  }
-}
-
-async function ensureFirebaseAuth(){
-  if (!FIREBASE_ENABLED) return false;
-  initFirebase();
-  if (!FIREBASE_AUTH) return true;
-  if (FIREBASE_AUTH.currentUser) return true;
-  try{
-    await FIREBASE_AUTH.signInAnonymously();
-    console.log('Firebase anonymous auth completed');
-    return true;
-  } catch (e){
-    console.warn('Firebase anonymous auth failed:', e);
-    showToast('error', 'Firebase auth falló', e.message || 'No se pudo autenticar con Firebase.');
-    return false;
-  }
-}
-
-function getRemoteStateDoc(userKey){
-  if (!userKey) return null;
-  if (!FIREBASE_INITIALIZED){
-    initFirebase();
-  }
-  if (!FIREBASE_INITIALIZED || !FIREBASE_DB) return null;
-  return FIREBASE_DB.collection(FIRESTORE_COLLECTION).doc(userKey);
-}
-
 async function loadRemoteState(userKey){
-  if (!FIREBASE_ENABLED){
-    console.warn('loadRemoteState skipped: Firebase disabled');
+  if (!MONGO_ENABLED){
+    console.warn('loadRemoteState skipped: MongoDB disabled');
     return null;
   }
   if (!userKey){
     console.warn('loadRemoteState skipped: missing userKey');
     return null;
   }
-  if (!(await ensureFirebaseAuth())) return null;
-  const doc = getRemoteStateDoc(userKey);
-  if (!doc){
-    console.warn('loadRemoteState skipped: no Firestore document handle');
-    return null;
-  }
   try{
     console.log('Loading remote state for user:', userKey);
-    const snapshot = await doc.get();
-    if (!snapshot.exists){
+    const response = await fetch(`${MONGO_API_BASE}/state/${encodeURIComponent(userKey)}`);
+    if (response.status === 404){
       console.log('Remote state not found for user:', userKey);
       return null;
     }
-    const data = snapshot.data();
+    if (!response.ok){
+      const errorText = await response.text();
+      throw new Error(errorText || response.statusText);
+    }
+    const data = await response.json();
     if (!data || !data.state || !Array.isArray(data.state.suppliers) || data.state.suppliers.length === 0){
       console.warn('Remote state invalid, empty or not ready for user:', userKey, data);
       return null;
@@ -5589,36 +5530,35 @@ async function loadRemoteState(userKey){
     return normalizeData(data.state);
   } catch (e){
     console.warn('Remote load failed:', e);
-    showToast('error', 'Error al cargar remoto', e.message || 'No se pudo obtener los datos de Firestore.');
+    showToast('error', 'Error al cargar remoto', e.message || 'No se pudo obtener los datos desde MongoDB.');
     return null;
   }
 }
 
 async function saveRemoteState(userKey){
-  if (!FIREBASE_ENABLED){
-    console.warn('saveRemoteState skipped: Firebase disabled');
+  if (!MONGO_ENABLED){
+    console.warn('saveRemoteState skipped: MongoDB disabled');
     return;
   }
   if (!userKey){
     console.warn('saveRemoteState skipped: missing userKey');
     return;
   }
-  if (!(await ensureFirebaseAuth())) return;
-  const doc = getRemoteStateDoc(userKey);
-  if (!doc){
-    console.warn('saveRemoteState skipped: no Firestore document handle');
-    return;
-  }
   try{
     console.log('Saving remote state for user:', userKey);
-    await doc.set({
-      state: DATA,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    const response = await fetch(`${MONGO_API_BASE}/state/${encodeURIComponent(userKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: DATA })
     });
+    if (!response.ok){
+      const errorText = await response.text();
+      throw new Error(errorText || response.statusText);
+    }
     console.log('Remote state saved for user:', userKey);
   } catch (e){
     console.warn('Remote save failed:', e);
-    showToast('error', 'Error al guardar remoto', e.message || 'No se pudo guardar el estado en Firestore.');
+    showToast('error', 'Error al guardar remoto', e.message || 'No se pudo guardar el estado en MongoDB.');
   }
 }
 
@@ -5690,7 +5630,7 @@ function registerProductSale(s, product, cantidad, nota = ''){
 let DATA = loadPersistedData();
 let SUPPLIERS = DATA.suppliers;
 async function loadUserStateOnInit(){
-  if (!FIREBASE_ENABLED) return;
+  if (!MONGO_ENABLED) return;
   const userKey = getAuthUser();
   if (!userKey || isSessionExpired()) return;
   const remote = await loadRemoteState(userKey);
@@ -6209,7 +6149,7 @@ function attachLoginBehavior(){
       localStorage.setItem(AUTH_KEY, userKey);
       localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
       const next = async () => {
-        if (FIREBASE_ENABLED){
+        if (MONGO_ENABLED){
           const remote = await loadRemoteState(userKey);
           if (remote){
             DATA = remote;
@@ -8394,7 +8334,6 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 
 /* ---------------------------- INIT ---------------------------- */
 (async () => {
-  if (FIREBASE_ENABLED) initFirebase();
   await loadUserStateOnInit();
   initialRecalc();
   buildNav();
