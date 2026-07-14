@@ -6758,6 +6758,9 @@ function attachDashboardCharts(){
       }]
     },
     options: {
+      animation: false,
+      animations: false,
+      transitions: {},
       indexAxis: 'y',
       plugins: { legend: {display:false},
         tooltip: { callbacks: { label: (c) => fmtS(c.parsed.x) } } },
@@ -6788,6 +6791,9 @@ function attachDashboardCharts(){
       }]
     },
     options: {
+      animation: false,
+      animations: false,
+      transitions: {},
       plugins: { legend: { position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } },
       cutout: '62%'
     }
@@ -7111,6 +7117,9 @@ function attachStockBajoChart(){
       datasets:[{ data: ranked.map(r=>r.count), backgroundColor:'rgba(184,118,30,0.5)', borderColor:'#b8761e', borderWidth:1, borderRadius:3 }]
     },
     options:{
+      animation: false,
+      animations: false,
+      transitions: {},
       indexAxis:'y',
       plugins:{ legend:{display:false} },
       scales:{
@@ -7544,6 +7553,9 @@ function attachSupplierCharts(s){
         datasets:[{ data: top.map(p=>p[moneyKey]||0), backgroundColor:'rgba(39,110,110,0.45)', borderColor:'#276e6e', borderWidth:1, borderRadius:3 }]
       },
       options:{
+        animation: false,
+        animations: false,
+        transitions: {},
         indexAxis:'y',
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>fmtS(c.parsed.x) } } },
         scales:{
@@ -7568,7 +7580,13 @@ function attachSupplierCharts(s){
         labels:['Óptimo','Stock bajo','Otro / S.P.'],
         datasets:[{ data:[optimo,bajo,otro], backgroundColor:['#3c7a2e','#b8761e','#276e6e'], borderColor:'#ffffff', borderWidth:3 }]
       },
-      options:{ plugins:{ legend:{ position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } }, cutout:'62%' }
+      options:{
+        animation: false,
+        animations: false,
+        transitions: {},
+        plugins:{ legend:{ position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } },
+        cutout:'62%'
+      }
     });
   }
 }
