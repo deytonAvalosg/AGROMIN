@@ -8557,6 +8557,43 @@ document.getElementById('menuBtn').addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open');
 });
 
+/* ---------------------------- ORIENTATION FIX ---------------------------- */
+(function(){
+  let _orientTimer = null;
+
+  function onOrientationChange(){
+    /* Cerrar sidebar si está abierto al rotar */
+    document.getElementById('sidebar').classList.remove('open');
+
+    /* Esperar a que el navegador termine de ajustar el viewport */
+    clearTimeout(_orientTimer);
+    _orientTimer = setTimeout(() => {
+      /* Forzar recálculo de layout destruyendo y re-creando los charts */
+      destroyCharts();
+      /* Re-renderizar la vista actual */
+      buildNav();
+      buildTopbar();
+      render();
+    }, 300);
+  }
+
+  /* API moderna */
+  if (screen.orientation){
+    screen.orientation.addEventListener('change', onOrientationChange);
+  }
+  /* Fallback para iOS y navegadores viejos */
+  window.addEventListener('orientationchange', onOrientationChange);
+  /* Último recurso: resize (cubre todos los casos) */
+  let _lastW = window.innerWidth;
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth;
+    if (w !== _lastW){
+      _lastW = w;
+      onOrientationChange();
+    }
+  });
+})();
+
 /* ---------------------------- INIT ---------------------------- */
 initialRecalc();
 buildNav();
