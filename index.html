@@ -307,6 +307,76 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
 }
 .filter-chip:hover{ background: rgba(60,122,46,0.08); border-color: var(--lime); color: var(--text); }
 .filter-chip.active{ background: var(--lime); border-color: var(--lime); color: #f6f8f1; }
+
+/* ---------- FILTER CHIPS (catálogo proveedor) ---------- */
+.filter-chips{
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.chip{
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  color: var(--text-dim);
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+  white-space: nowrap;
+}
+.chip:hover{
+  background: rgba(60,122,46,0.08);
+  border-color: var(--lime);
+  color: var(--text);
+}
+.chip.active{
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #f6f8f1;
+  box-shadow: 0 2px 8px rgba(60,122,46,0.25);
+}
+.chip[data-filter="bajo"].active{
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 2px 8px rgba(184,118,30,0.25);
+}
+.chip[data-filter="optimo"].active{
+  background: var(--lime);
+  border-color: var(--lime);
+}
+
+/* ---------- BOTÓN RECARGAR ---------- */
+.btn-reload{
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--panel-2);
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  color: var(--sky);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-reload:hover{
+  background: rgba(39,110,110,0.1);
+  border-color: var(--sky);
+}
+.btn-reload:disabled{
+  opacity: 0.5; cursor: not-allowed;
+}
+.btn-reload .reload-icon{
+  display: inline-block;
+  transition: transform 0.5s ease;
+}
+.btn-reload.spinning .reload-icon{
+  animation: spin360 0.6s linear infinite;
+}
+@keyframes spin360{
+  from{ transform: rotate(0deg); }
+  to{ transform: rotate(360deg); }
+}
 .mini-search{
   display:flex; align-items:center; gap:6px;
   background: var(--panel-2); border:1px solid var(--line);
@@ -6339,6 +6409,7 @@ function viewVentas(){
         <div class="filter-group">
           <label>Acción</label>
           <button class="btn-primary" id="downloadVentasExcelBtn" style="min-width: auto;">Descargar Excel</button>
+          <button class="btn-reload" id="reloadVentasBtn" title="Recargar datos desde la nube"><span class="reload-icon">↻</span> Recargar</button>
         </div>
       </div>
       <div class="table-scroll">
@@ -6370,6 +6441,7 @@ function viewVentas(){
 
 function attachVentasBehavior(){
   const downloadBtn = document.getElementById('downloadVentasExcelBtn');
+  const reloadBtn = document.getElementById('reloadVentasBtn');
   const supplierFilter = document.getElementById('ventasSupplierFilter');
   const tableBody = document.getElementById('ventasTableBody');
   const prevBtn = document.getElementById('ventasPrevBtn');
@@ -6469,6 +6541,23 @@ function attachVentasBehavior(){
   }
 
   downloadBtn.addEventListener('click', exportVentas);
+
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', async () => {
+      reloadBtn.disabled = true;
+      reloadBtn.classList.add('spinning');
+      reloadBtn.querySelector('.reload-icon').textContent = '↻';
+      const loaded = await loadFromCloud();
+      if (loaded) {
+        renderSalesTable();
+        showToast('success', 'Datos actualizados', 'Se cargaron los datos más recientes.');
+      } else {
+        showToast('info', 'Sin cambios', 'No hay datos nuevos en la nube.');
+      }
+      reloadBtn.disabled = false;
+      reloadBtn.classList.remove('spinning');
+    });
+  }
   supplierFilter.addEventListener('change', (e) => {
     currentSupplier = e.target.value;
     currentPage = 1;
