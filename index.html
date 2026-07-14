@@ -5399,6 +5399,11 @@ const AGROMIN_DATA = {
    AGROMIN — Sistema de Control de Costos e Inventario
    ========================================================================== */
 
+/* Deshabilitar todas las animaciones de Chart.js globalmente */
+Chart.defaults.animation = false;
+Chart.defaults.animations = false;
+Chart.defaults.transitions = {};
+
 const fmtS = (n) => n === null || n === undefined || isNaN(n) ? '—' :
   'S/ ' + Number(n).toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmtUSD = (n) => n === null || n === undefined || isNaN(n) ? '—' :
