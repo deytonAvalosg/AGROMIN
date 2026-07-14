@@ -5398,12 +5398,48 @@ async function initSupabaseAuth(){
       // Recargar datos desde nube al iniciar sesión
       await loadFromCloud();
       buildNav(); buildTopbar(); render();
+      // Activar sincronización en tiempo real
+      startRealtimeSync();
     } else if (event === 'SIGNED_OUT') {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_LAST_ACTIVITY);
+      stopRealtimeSync();
       buildNav(); buildTopbar(); render();
     }
   });
+}
+
+// ---- REALTIME SYNC ----
+let _realtimeChannel = null;
+let _lastSavedAt = null; // para evitar que el propio dispositivo se actualice a sí mismo
+
+function startRealtimeSync(){
+  if (_realtimeChannel) return; // ya activo
+  _realtimeChannel = _supabase
+    .channel('agromin_state_changes')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: CLOUD_TABLE, filter: `id=eq.${CLOUD_ROW_ID}` },
+      async (payload) => {
+        // Si el updated_at remoto es más reciente que el último que guardamos nosotros, recargar
+        const remoteTs = payload?.new?.updated_at;
+        if (remoteTs && remoteTs !== _lastSavedAt) {
+          const loaded = await loadFromCloud();
+          if (loaded) {
+            render();
+            showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
+          }
+        }
+      }
+    )
+    .subscribe();
+}
+
+function stopRealtimeSync(){
+  if (_realtimeChannel) {
+    _supabase.removeChannel(_realtimeChannel);
+    _realtimeChannel = null;
+  }
 }
 
 function getUserKeyFromEmail(email){
@@ -5474,9 +5510,11 @@ async function saveToCloud(){
   if (!_sbSession) return; // Solo sincronizar si hay sesión activa
   try {
     const payload = JSON.stringify(DATA);
+    const ts = new Date().toISOString();
+    _lastSavedAt = ts; // marcar para ignorar el propio cambio en realtime
     const { error } = await _supabase
       .from(CLOUD_TABLE)
-      .upsert({ id: CLOUD_ROW_ID, payload, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+      .upsert({ id: CLOUD_ROW_ID, payload, updated_at: ts }, { onConflict: 'id' });
     if (error) console.warn('Cloud save error:', error.message);
   } catch(e){ console.warn('Cloud save exception:', e); }
 }
@@ -8314,6 +8352,7 @@ setupAuthActivityWatcher();
   // Si hay sesión activa, intentar cargar datos frescos de la nube
   if (_sbSession) {
     await loadFromCloud();
+    startRealtimeSync();
   }
   render();
 })();
