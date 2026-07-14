@@ -5434,8 +5434,7 @@ const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
 const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
 const USERS = {
-  AGROMIN: { password: '123', role: 'admin' },
-  SOLUCIONES: { password: '123', role: 'limited' }
+  AGROMIN: { password: '123', role: 'admin' }
 };
 const BASE_DATA = AGROMIN_DATA;
 
@@ -5480,15 +5479,17 @@ function ensureProductIdentity(product, supplierName, index){
   return product;
 }
 function normalizeData(data){
+  /* IMPORTANTE: NO mezclar con BASE_DATA — los datos guardados son la fuente de verdad.
+     Solo asegurar que la estructura sea válida y los campos requeridos existan. */
   const normalized = cloneData(data || BASE_DATA);
   if (!normalized.cambioDolar) normalized.cambioDolar = cloneData(BASE_DATA.cambioDolar);
   normalized.suppliers = (normalized.suppliers || []).map((s, idx) => {
-    const baseSupplier = BASE_DATA.suppliers?.[idx] || {};
-    const supplier = { ...cloneData(baseSupplier), ...s };
+    /* NO mezclar con baseSupplier — usar solo los datos guardados */
+    const supplier = { ...s };
     supplier.products = Array.isArray(supplier.products) ? supplier.products : [];
     supplier.inactiveProducts = Array.isArray(supplier.inactiveProducts) ? supplier.inactiveProducts : [];
     supplier.products = supplier.products.map((p, pIdx) => {
-      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
+      const prod = { ...p };
       ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
       prod.isActive = true;
       prod.deletedAt = null;
@@ -5501,7 +5502,7 @@ function normalizeData(data){
       return prod;
     });
     supplier.inactiveProducts = supplier.inactiveProducts.map((p, pIdx) => {
-      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
+      const prod = { ...p };
       ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
       prod.isActive = false;
       if (!prod.deletedAt) prod.deletedAt = new Date().toISOString();
@@ -5509,7 +5510,7 @@ function normalizeData(data){
       prod.lotes = Array.isArray(prod.lotes) ? prod.lotes : [];
       return prod;
     });
-    supplier.meta = { ...(baseSupplier.meta || {}), ...(supplier.meta || {}) };
+    supplier.meta = supplier.meta || {};
     return supplier;
   });
   return normalized;
