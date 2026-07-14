@@ -59,6 +59,12 @@ const client = new MongoClient(MONGO_URI, {
     strict: true,
     deprecationErrors: true,
   },
+  tls: true,
+  tlsAllowInvalidCertificates: true,
+  tlsAllowInvalidHostnames: true,
+  connectTimeoutMS: 30000,
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
 });
 
 let collection;
