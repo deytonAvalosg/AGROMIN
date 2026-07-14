@@ -6366,6 +6366,11 @@ function viewVentas(){
       <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
       <td class="num">${fmtN(entry.product.stock, 0)}</td>
       <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+      <td class="actions-cell">
+        <button class="icon-btn detail-btn" title="Ver detalle de ventas"
+          data-sup="${entry.supplierIdx}"
+          data-uid="${esc(entry.product._uid || '')}">🧾</button>
+      </td>
     </tr>
   `).join('');
 
@@ -6412,9 +6417,9 @@ function viewVentas(){
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
-            <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th><th>Última venta</th>
+            <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th><th>Última venta</th><th></th>
           </tr></thead>
-          <tbody id="ventasTableBody">${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
+          <tbody id="ventasTableBody">${rows || '<tr><td colspan="9" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
         </table>
       </div>
       <div class="pagination-footer">
@@ -6483,13 +6488,27 @@ function attachVentasBehavior(){
         <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
         <td class="num">${fmtN(entry.product.stock, 0)}</td>
         <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+        <td class="actions-cell">
+          <button class="icon-btn detail-btn" title="Ver detalle de ventas"
+            data-sup="${entry.supplierIdx}"
+            data-uid="${esc(entry.product._uid || '')}">🧾</button>
+        </td>
       </tr>
-    `).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
+    `).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
 
     pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
     totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
     prevBtn.disabled = currentPage <= 1;
     nextBtn.disabled = currentPage >= totalPages;
+
+    // Botones de detalle
+    tableBody.querySelectorAll('.detail-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const supIdx = parseInt(btn.dataset.sup, 10);
+        const uid = btn.dataset.uid;
+        openVentasDetailModal(supIdx, uid, renderSalesTable);
+      });
+    });
   }
 
   function exportVentas(){
@@ -6544,6 +6563,84 @@ function attachVentasBehavior(){
   });
 
   renderSalesTable();
+}
+
+function openVentasDetailModal(supIdx, uid, onUpdate){
+  const s = SUPPLIERS[supIdx];
+  if (!s) return;
+  const p = s.products.find(pr => pr._uid === uid);
+  if (!p) return;
+
+  function buildModalContent(){
+    const ventas = Array.isArray(p.ventas) ? [...p.ventas].reverse() : [];
+    const rows = ventas.length ? ventas.map((v, i) => `
+      <tr>
+        <td class="num">${ventas.length - i}</td>
+        <td>${esc(v.fecha ? v.fecha.slice(0,10) : '—')}</td>
+        <td>${esc(v.fecha ? v.fecha.slice(11,16) : '—')}</td>
+        <td class="num">${fmtN(v.cantidad, 0)}</td>
+        <td>${esc(v.nota || '—')}</td>
+        <td class="actions-cell">
+          <button class="icon-btn delete-btn venta-del-btn" title="Eliminar venta y devolver stock"
+            data-saleid="${esc(v.id || '')}">🗑</button>
+        </td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:16px;">Sin registros de venta.</td></tr>`;
+
+    return `
+      <div class="modal-eyebrow">Historial de ventas</div>
+      <div class="modal-title">${esc(p.producto)}</div>
+      <div class="modal-sub">${esc(s.name)} · Stock actual: <strong>${fmtN(p.stock, 0)}</strong> unidades</div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>#</th><th>Fecha</th><th>Hora</th><th class="num">Cantidad</th><th>Nota</th><th></th>
+          </tr></thead>
+          <tbody id="ventasDetailBody">${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  openModal(buildModalContent());
+
+  function attachDeleteBtns(){
+    document.querySelectorAll('.venta-del-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const saleId = btn.dataset.saleid;
+        const venta = (p.ventas || []).find(v => v.id === saleId);
+        if (!venta) return;
+
+        const { isConfirmed } = await Swal.fire({
+          title: '¿Eliminar esta venta?',
+          html: `Se devolverán <strong>${fmtN(venta.cantidad, 0)}</strong> unidades al stock de <strong>${esc(p.producto)}</strong>.`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sí, eliminar',
+          cancelButtonText: 'Cancelar',
+          customClass: { popup: 'agromin-swal' }
+        });
+        if (!isConfirmed) return;
+
+        // Devolver stock y eliminar registro
+        p.stock = (Number(p.stock) || 0) + Number(venta.cantidad);
+        p.ventas = p.ventas.filter(v => v.id !== saleId);
+        p.ventasTotal = getSalesTotal(p);
+        p.ultimaVenta = p.ventas.length ? p.ventas[p.ventas.length - 1].fecha : null;
+
+        recalcSupplierMeta(s);
+        saveState();
+        if (onUpdate) onUpdate();
+
+        // Refrescar contenido del modal
+        document.getElementById('modalBody').innerHTML = buildModalContent();
+        attachDeleteBtns();
+        showToast('success', 'Venta eliminada', `Se devolvieron ${fmtN(venta.cantidad, 0)} unidades al stock.`);
+      });
+    });
+  }
+
+  attachDeleteBtns();
 }
 
 function attachDashboardCharts(){
