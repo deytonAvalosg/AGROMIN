@@ -5577,14 +5577,15 @@ function saveState(){
       );
       if (error){
         console.error('Supabase save error:', error);
-        showToast('error', '⚠ Error al guardar', error.message || 'No se pudo guardar en la nube.');
+        showToast('error', '⚠ Error al guardar: ' + (error.message || error.code || JSON.stringify(error)), '');
       } else {
         _lastCloudTs = ts;
         try{ localStorage.setItem('agromin_cloud_ts', ts); } catch(e){}
+        showToast('success', '☁ Guardado en nube', '');
       }
     } catch(e){
       console.error('saveState exception:', e);
-      showToast('error', '⚠ Error al guardar', 'Sin conexión con la nube.');
+      showToast('error', '⚠ Error: ' + (e.message || 'Sin conexión'), '');
     }
     _isSavingToCloud = false;
     _saveTimer = null;
