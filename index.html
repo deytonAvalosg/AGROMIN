@@ -5547,7 +5547,9 @@ function loadPersistedData(){
 }
 
 /* Guarda en localStorage Y en Supabase (nube) */
-let _saveTimer = null;
+let _saveTimer       = null;
+let _isSavingToCloud = false;
+
 function saveState(){
   try{
     const payload = JSON.stringify(DATA);
@@ -5555,7 +5557,6 @@ function saveState(){
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
   } catch(e){}
 
-  setSyncStatus('saving');
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
     _isSavingToCloud = true;
@@ -5566,94 +5567,98 @@ function saveState(){
         { onConflict: 'id' }
       );
       _lastCloudTs = ts;
-      setSyncStatus('ok');
-    } catch(e){
-      console.warn('Supabase save error:', e);
-      setSyncStatus('error');
-    }
+    } catch(e){ /* silencioso */ }
     _isSavingToCloud = false;
     _saveTimer = null;
   }, 600);
 }
 
-/* Carga desde la nube y re-renderiza si hay datos más nuevos */
+/* Carga desde la nube al arrancar — solo si hay datos más nuevos que el localStorage */
 async function loadCloudData(){
   try{
-    const { data: rows, error } = await _supa
+    const { data: row, error } = await _supa
       .from('agromin_state')
       .select('data, updated_at')
       .eq('id', CLOUD_ROW_ID)
       .single();
 
-    if (error || !rows || !rows.data) return;
+    if (error || !row || !row.data) return;
 
-    const normalized = cleanupLoadedSuppliers(normalizeData(rows.data));
+    _lastCloudTs = row.updated_at;
+
+    /* Comparar con lo que ya tenemos: si los datos son iguales, no re-renderizar */
+    const currentJson = JSON.stringify(DATA);
+    const normalized  = cleanupLoadedSuppliers(normalizeData(row.data));
     if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return;
 
-    /* Aplica los datos de la nube */
+    const cloudJson = JSON.stringify(normalized);
+    if (cloudJson === currentJson) return; /* Sin cambios — no parpadear */
+
     DATA      = normalized;
     SUPPLIERS = DATA.suppliers;
-    _lastCloudTs = rows.updated_at; // guardar timestamp base
-
-    /* Actualiza localStorage como caché local */
     try{
-      const payload = JSON.stringify(DATA);
-      localStorage.setItem(STORAGE_KEY,        payload);
-      localStorage.setItem(STORAGE_BACKUP_KEY, payload);
+      localStorage.setItem(STORAGE_KEY,        cloudJson);
+      localStorage.setItem(STORAGE_BACKUP_KEY, cloudJson);
     } catch(e){}
 
-    /* Re-renderiza la UI con los datos actualizados */
     initialRecalc();
     buildNav();
     buildTopbar();
     render();
-    setSyncStatus('ok');
-  } catch(e){ console.warn('Supabase load error:', e); setSyncStatus('error'); }
+  } catch(e){ /* silencioso */ }
 }
 
-/* ---- Indicador de sincronización en el topbar ---- */
+/* ---- Indicador discreto de estado de conexión ---- */
 function setSyncStatus(state){
   const el = document.getElementById('syncIndicator');
   if (!el) return;
-  const icons = { saving: '⏳', ok: '☁ Sincronizado', error: '⚠ Sin conexión', live: '🔴 En vivo' };
-  const colors = { saving: 'var(--text-faint)', ok: 'var(--lime)', error: 'var(--rust)', live: 'var(--rust)' };
-  el.textContent = icons[state] || '';
-  el.style.color  = colors[state] || 'var(--text-faint)';
+  /* Solo mostrar en caso de error real; en operación normal queda vacío */
+  if (state === 'error'){
+    el.textContent = '⚠ Sin conexión';
+    el.style.color = 'var(--rust)';
+  } else {
+    el.textContent = '';
+  }
 }
 
-/* ---- Realtime: escucha cambios de otros dispositivos/usuarios ---- */
+/* ---- Sistema de sincronización ---- */
 let _realtimeChannel = null;
 let _pollInterval    = null;
-let _lastCloudTs     = null; // timestamp del último dato aplicado desde la nube
-let _isSavingToCloud = false; // true solo mientras el upsert está en vuelo
+let _lastCloudTs     = null;
 
-function applyCloudPayload(rawData){
+/* Aplica datos de la nube SIN re-renderizar si el contenido es idéntico */
+function applyCloudPayload(rawData, cloudTs){
   try{
     if (!rawData) return false;
     const normalized = cleanupLoadedSuppliers(normalizeData(rawData));
     if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return false;
 
+    const cloudJson   = JSON.stringify(normalized);
+    const currentJson = JSON.stringify(DATA);
+    if (cloudJson === currentJson){
+      _lastCloudTs = cloudTs; /* actualizar ts aunque no haya cambio visual */
+      return false;           /* sin re-render */
+    }
+
     DATA      = normalized;
     SUPPLIERS = DATA.suppliers;
-
     try{
-      const p = JSON.stringify(DATA);
-      localStorage.setItem(STORAGE_KEY,        p);
-      localStorage.setItem(STORAGE_BACKUP_KEY, p);
+      localStorage.setItem(STORAGE_KEY,        cloudJson);
+      localStorage.setItem(STORAGE_BACKUP_KEY, cloudJson);
     } catch(e){}
 
+    _lastCloudTs = cloudTs;
     initialRecalc();
     buildNav();
     buildTopbar();
     render();
-    setSyncStatus('ok');
     return true;
   } catch(e){ return false; }
 }
 
 async function pollOnce(){
   if (!isAuthenticated()) return;
-  if (_isSavingToCloud) return; // esperar a que termine mi propio save
+  if (_isSavingToCloud)   return;
   try{
     const { data: row, error } = await _supa
       .from('agromin_state')
@@ -5662,57 +5667,45 @@ async function pollOnce(){
       .single();
 
     if (error || !row) return;
+    if (!row.updated_at || row.updated_at === _lastCloudTs) return; /* sin cambio */
 
-    const cloudTs = row.updated_at;
-    if (cloudTs && cloudTs !== _lastCloudTs){
-      const applied = applyCloudPayload(row.data);
-      if (applied){
-        _lastCloudTs = cloudTs;
-      }
-    }
+    applyCloudPayload(row.data, row.updated_at);
   } catch(e){ /* silencioso */ }
 }
 
-/* Polling cada 2 s */
+/* Polling cada 3 s — equilibrio entre velocidad y estabilidad */
 function startPolling(){
   if (_pollInterval) return;
-  _pollInterval = setInterval(pollOnce, 2000);
+  _pollInterval = setInterval(pollOnce, 3000);
 }
 
 function startRealtimeSync(){
   startPolling();
 
-  /* Sincronizar inmediatamente cuando el usuario vuelve a la pestaña/app */
+  /* Al volver a la pestaña: sync inmediato */
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') pollOnce();
   });
-  window.addEventListener('focus', pollOnce);
 
-  /* Intentar también Realtime WebSocket como canal adicional */
+  /* Realtime WebSocket como canal adicional (si Supabase lo tiene habilitado) */
   if (_realtimeChannel) return;
   try{
     _realtimeChannel = _supa
-      .channel('agromin_state_rt')
+      .channel('agromin_rt')
       .on('postgres_changes', {
-        event: '*',
+        event: 'UPDATE',
         schema: 'public',
         table: 'agromin_state'
       }, (payload) => {
         try{
-          const newData = payload.new?.data;
-          const newTs   = payload.new?.updated_at;
-          if (!newData || newTs === _lastCloudTs) return;
           if (_isSavingToCloud) return;
-          const applied = applyCloudPayload(newData);
-          if (applied){
-            _lastCloudTs = newTs;
-          }
+          const newTs = payload.new?.updated_at;
+          if (!newTs || newTs === _lastCloudTs) return;
+          applyCloudPayload(payload.new?.data, newTs);
         } catch(e){}
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') setSyncStatus('live');
-      });
-  } catch(e){ /* Realtime no disponible, el polling cubre */ }
+      .subscribe();
+  } catch(e){ /* silencioso */ }
 }
 function showToast(icon, title, text=''){
   Swal.fire({
@@ -8560,38 +8553,28 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 /* ---------------------------- ORIENTATION FIX ---------------------------- */
 (function(){
   let _orientTimer = null;
+  let _lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
   function onOrientationChange(){
-    /* Cerrar sidebar si está abierto al rotar */
+    const nowOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+    /* Solo actuar si realmente cambió la orientación, no por cualquier resize */
+    if (nowOrientation === _lastOrientation) return;
+    _lastOrientation = nowOrientation;
+
     document.getElementById('sidebar').classList.remove('open');
 
-    /* Esperar a que el navegador termine de ajustar el viewport */
     clearTimeout(_orientTimer);
     _orientTimer = setTimeout(() => {
-      /* Forzar recálculo de layout destruyendo y re-creando los charts */
       destroyCharts();
-      /* Re-renderizar la vista actual */
-      buildNav();
-      buildTopbar();
       render();
-    }, 300);
+    }, 350);
   }
 
-  /* API moderna */
   if (screen.orientation){
     screen.orientation.addEventListener('change', onOrientationChange);
   }
-  /* Fallback para iOS y navegadores viejos */
   window.addEventListener('orientationchange', onOrientationChange);
-  /* Último recurso: resize (cubre todos los casos) */
-  let _lastW = window.innerWidth;
-  window.addEventListener('resize', () => {
-    const w = window.innerWidth;
-    if (w !== _lastW){
-      _lastW = w;
-      onOrientationChange();
-    }
-  });
+  window.addEventListener('resize', onOrientationChange);
 })();
 
 /* ---------------------------- INIT ---------------------------- */
