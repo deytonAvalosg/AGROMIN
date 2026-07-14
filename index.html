@@ -735,6 +735,7 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
       <button class="menu-btn" id="menuBtn">☰</button>
       <div class="ticker" id="ticker"></div>
       <div id="userBox"></div>
+      <span id="syncIndicator" style="font-family:var(--mono);font-size:11px;color:var(--text-faint);white-space:nowrap;margin-left:auto;margin-right:8px;"></span>
       <div id="search-box">
         <span>⌕</span>
         <input id="globalSearch" placeholder="Buscar producto en todos los proveedores…" />
@@ -5549,6 +5550,7 @@ function saveState(){
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
   } catch(e){}
 
+  setSyncStatus('saving');
   /* Debounce: espera 800 ms sin nuevos cambios antes de subir a la nube */
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
@@ -5557,7 +5559,11 @@ function saveState(){
         { id: CLOUD_ROW_ID, data: DATA, updated_at: new Date().toISOString() },
         { onConflict: 'id' }
       );
-    } catch(e){ console.warn('Supabase save error:', e); }
+      setSyncStatus('ok');
+    } catch(e){
+      console.warn('Supabase save error:', e);
+      setSyncStatus('error');
+    }
   }, 800);
 }
 
@@ -5591,7 +5597,58 @@ async function loadCloudData(){
     buildNav();
     buildTopbar();
     render();
-  } catch(e){ console.warn('Supabase load error:', e); }
+    setSyncStatus('ok');
+  } catch(e){ console.warn('Supabase load error:', e); setSyncStatus('error'); }
+}
+
+/* ---- Indicador de sincronización en el topbar ---- */
+function setSyncStatus(state){
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  const icons = { saving: '⏳', ok: '☁ Sincronizado', error: '⚠ Sin conexión', live: '🔴 En vivo' };
+  const colors = { saving: 'var(--text-faint)', ok: 'var(--lime)', error: 'var(--rust)', live: 'var(--rust)' };
+  el.textContent = icons[state] || '';
+  el.style.color  = colors[state] || 'var(--text-faint)';
+}
+
+/* ---- Realtime: escucha cambios de otros dispositivos/usuarios ---- */
+let _realtimeChannel = null;
+function startRealtimeSync(){
+  if (_realtimeChannel) return; // ya activo
+  _realtimeChannel = _supa
+    .channel('agromin_state_changes')
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'agromin_state',
+      filter: `id=eq.${CLOUD_ROW_ID}`
+    }, (payload) => {
+      /* Otro dispositivo/usuario actualizó los datos → aplicar aquí */
+      try{
+        if (!payload.new || !payload.new.data) return;
+        const normalized = cleanupLoadedSuppliers(normalizeData(payload.new.data));
+        if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return;
+
+        DATA      = normalized;
+        SUPPLIERS = DATA.suppliers;
+
+        try{
+          const p = JSON.stringify(DATA);
+          localStorage.setItem(STORAGE_KEY,        p);
+          localStorage.setItem(STORAGE_BACKUP_KEY, p);
+        } catch(e){}
+
+        initialRecalc();
+        buildNav();
+        buildTopbar();
+        render();
+        setSyncStatus('ok');
+        showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
+      } catch(e){ console.warn('Realtime apply error:', e); }
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') setSyncStatus('live');
+    });
 }
 function showToast(icon, title, text=''){
   Swal.fire({
@@ -8445,6 +8502,9 @@ render();
 
 /* Carga datos de la nube en segundo plano y actualiza la UI */
 loadCloudData();
+
+/* Escucha cambios en tiempo real para sincronizar entre dispositivos/usuarios */
+startRealtimeSync();
 
 </script>
 </body>
