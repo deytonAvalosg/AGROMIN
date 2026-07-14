@@ -378,7 +378,32 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
   to{ transform: rotate(360deg); }
 }
 
-/* ---------- SCHEMA CARDS ---------- */
+/* ---------- VENTAS RANKING TABLE ---------- */
+.rank-badge{
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 24px; border-radius: 6px;
+  font-size: 14px; font-weight: 700;
+}
+.rank-num{
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 6px;
+  font-family: var(--mono); font-size: 12px;
+  color: var(--text-faint);
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.sales-bar-wrap{
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 70px;
+}
+.sales-bar-val{
+  font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text);
+}
+.sales-bar-track{
+  width: 100%; height: 4px; background: var(--line-soft); border-radius: 99px; overflow: hidden;
+}
+.sales-bar-fill{
+  height: 100%; background: linear-gradient(90deg, var(--lime-dim), var(--lime));
+  border-radius: 99px; transition: width 0.4s ease;
+}
 .schema-cards-grid{
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -6414,23 +6439,41 @@ function viewVentas(){
   });
   salesProducts.sort((a, b) => b.total - a.total || b.velocity - a.velocity);
 
-  const rows = salesProducts.map((entry, i) => `
-    <tr>
-      <td class="num">${i + 1}</td>
+  const maxTotal = salesProducts.length ? salesProducts[0].total : 1;
+  const rankColors = ['#d4a017','#8a8a8a','#a05c2a']; // oro, plata, bronce
+  const rankLabels = ['🥇','🥈','🥉'];
+
+  const rows = salesProducts.map((entry, i) => {
+    const pct = Math.round((entry.total / maxTotal) * 100);
+    const isTop3 = i < 3;
+    const rankStyle = isTop3 ? `border-left: 3px solid ${rankColors[i]};` : '';
+    const numCell = isTop3
+      ? `<span class="rank-badge" style="background:${rankColors[i]}22;color:${rankColors[i]};border:1px solid ${rankColors[i]}44;">${rankLabels[i]}</span>`
+      : `<span class="rank-num">${i + 1}</span>`;
+    const velocityColor = entry.velocity >= 10 ? 'var(--lime)' : entry.velocity >= 3 ? 'var(--amber)' : 'var(--text-faint)';
+    const stockColor = entry.product.stock <= 10 ? 'var(--rust)' : entry.product.stock <= 30 ? 'var(--amber)' : 'var(--lime)';
+    return `
+    <tr style="${rankStyle}">
+      <td class="num">${numCell}</td>
       <td class="prod-name">${esc(entry.product.producto)}</td>
       <td><a href="#sup:${entry.supplierIdx}">${esc(entry.supplier.name)}</a></td>
-      <td class="num">${fmtInt(entry.total)}</td>
-      <td class="num">${fmtInt(entry.recent7)}</td>
-      <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
-      <td class="num">${fmtN(entry.product.stock, 0)}</td>
-      <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+      <td class="num">
+        <div class="sales-bar-wrap">
+          <span class="sales-bar-val">${fmtInt(entry.total)}</span>
+          <div class="sales-bar-track"><div class="sales-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+      </td>
+      <td class="num" style="color:${entry.recent7 > 0 ? 'var(--sky)' : 'var(--text-faint)'};">${fmtInt(entry.recent7)}</td>
+      <td class="num" style="color:${velocityColor};font-weight:600;">${fmtN(entry.velocity, 1)} u/día</td>
+      <td class="num" style="color:${stockColor};font-weight:600;">${fmtN(entry.product.stock, 0)}</td>
+      <td style="color:var(--text-faint);font-size:11.5px;">${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
       <td class="actions-cell">
         <button class="icon-btn detail-btn" title="Ver detalle de ventas"
           data-sup="${entry.supplierIdx}"
           data-uid="${esc(entry.product._uid || '')}">🧾</button>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
 
   return `
     <div class="view-header">
@@ -6537,24 +6580,42 @@ function attachVentasBehavior(){
     if (currentPage > totalPages) currentPage = totalPages;
     const start = (currentPage - 1) * pageSize;
     const paged = salesProducts.slice(start, start + pageSize);
+    const maxTotal = salesProducts.length ? salesProducts[0].total : 1;
+    const rankColors = ['#d4a017','#8a8a8a','#a05c2a'];
+    const rankLabels = ['🥇','🥈','🥉'];
 
-    tableBody.innerHTML = paged.map((entry, i) => `
-      <tr>
-        <td class="num">${start + i + 1}</td>
-        <td class="prod-name">${esc(entry.product.producto)}</td>
-        <td><a href="#sup:${entry.supplierIdx}">${esc(entry.supplier.name)}</a></td>
-        <td class="num">${fmtInt(entry.total)}</td>
-        <td class="num">${fmtInt(entry.recent7)}</td>
-        <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
-        <td class="num">${fmtN(entry.product.stock, 0)}</td>
-        <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
-        <td class="actions-cell">
-          <button class="icon-btn detail-btn" title="Ver detalle de ventas"
-            data-sup="${entry.supplierIdx}"
-            data-uid="${esc(entry.product._uid || '')}">🧾</button>
-        </td>
-      </tr>
-    `).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
+    tableBody.innerHTML = paged.map((entry, i) => {
+      const globalRank = start + i;
+      const pct = Math.round((entry.total / maxTotal) * 100);
+      const isTop3 = globalRank < 3;
+      const rankStyle = isTop3 ? `border-left: 3px solid ${rankColors[globalRank]};` : '';
+      const numCell = isTop3
+        ? `<span class="rank-badge" style="background:${rankColors[globalRank]}22;color:${rankColors[globalRank]};border:1px solid ${rankColors[globalRank]}44;">${rankLabels[globalRank]}</span>`
+        : `<span class="rank-num">${globalRank + 1}</span>`;
+      const velocityColor = entry.velocity >= 10 ? 'var(--lime)' : entry.velocity >= 3 ? 'var(--amber)' : 'var(--text-faint)';
+      const stockColor = entry.product.stock <= 10 ? 'var(--rust)' : entry.product.stock <= 30 ? 'var(--amber)' : 'var(--lime)';
+      return `
+        <tr style="${rankStyle}">
+          <td class="num">${numCell}</td>
+          <td class="prod-name">${esc(entry.product.producto)}</td>
+          <td><a href="#sup:${entry.supplierIdx}">${esc(entry.supplier.name)}</a></td>
+          <td class="num">
+            <div class="sales-bar-wrap">
+              <span class="sales-bar-val">${fmtInt(entry.total)}</span>
+              <div class="sales-bar-track"><div class="sales-bar-fill" style="width:${pct}%"></div></div>
+            </div>
+          </td>
+          <td class="num" style="color:${entry.recent7 > 0 ? 'var(--sky)' : 'var(--text-faint)'};">${fmtInt(entry.recent7)}</td>
+          <td class="num" style="color:${velocityColor};font-weight:600;">${fmtN(entry.velocity, 1)} u/día</td>
+          <td class="num" style="color:${stockColor};font-weight:600;">${fmtN(entry.product.stock, 0)}</td>
+          <td style="color:var(--text-faint);font-size:11.5px;">${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+          <td class="actions-cell">
+            <button class="icon-btn detail-btn" title="Ver detalle de ventas"
+              data-sup="${entry.supplierIdx}"
+              data-uid="${esc(entry.product._uid || '')}">🧾</button>
+          </td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
 
     pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
     totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
