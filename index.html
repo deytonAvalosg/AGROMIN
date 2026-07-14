@@ -6270,6 +6270,7 @@ function viewDashboard(){
 }
 
 function viewVentas(){
+  const isAdmin = !isLimitedUser();
   const salesProducts = [];
   SUPPLIERS.forEach((s, idx) => {
     s.products.forEach(p => {
@@ -6279,6 +6280,7 @@ function viewVentas(){
   });
   salesProducts.sort((a, b) => b.total - a.total || b.velocity - a.velocity);
 
+  const colCount = isAdmin ? 9 : 8;
   const rows = salesProducts.map((entry, i) => `
     <tr>
       <td class="num">${i + 1}</td>
@@ -6289,6 +6291,7 @@ function viewVentas(){
       <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
       <td class="num">${fmtN(entry.product.stock, 0)}</td>
       <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+      ${isAdmin ? `<td class="actions-cell"><button class="icon-btn detail-btn venta-historial-btn" data-uid="${esc(entry.product._uid)}" data-sidx="${entry.supplierIdx}" title="Ver historial de ventas">📋</button></td>` : ''}
     </tr>
   `).join('');
 
@@ -6329,15 +6332,16 @@ function viewVentas(){
         </div>
         <div class="filter-group">
           <label>Acción</label>
-          <button class="btn-primary" id="downloadVentasExcelBtn" style="min-width: auto;">Descargar Excel</button>
+          <button class="btn-primary" id="downloadVentasExcelBtn" style="min-width: auto;">⬇ Descargar Excel</button>
         </div>
       </div>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
             <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th><th>Última venta</th>
+            ${isAdmin ? '<th>Historial</th>' : ''}
           </tr></thead>
-          <tbody id="ventasTableBody">${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
+          <tbody id="ventasTableBody">${rows || `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`}</tbody>
         </table>
       </div>
       <div class="pagination-footer">
@@ -6359,6 +6363,113 @@ function viewVentas(){
   `;
 }
 
+/* Abre modal con el historial completo de ventas de un producto (solo admin) */
+function openVentasHistorialModal(supplierIdx, productUid, onClosed){
+  const s = SUPPLIERS[supplierIdx];
+  if (!s) return;
+  const p = s.products.find(x => x._uid === productUid);
+  if (!p) return;
+
+  function buildRows(){
+    const ventas = (p.ventas || []).slice().reverse(); // más reciente primero
+    if (!ventas.length) return `<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:16px;">Sin ventas registradas.</td></tr>`;
+    return ventas.map(v => `
+      <tr data-sale-id="${esc(v.id || '')}">
+        <td>${esc(v.fecha ? v.fecha.slice(0,10) : '—')}</td>
+        <td>${esc(v.fecha ? v.fecha.slice(11,16) : '—')}</td>
+        <td class="num">${fmtInt(v.cantidad)}</td>
+        <td>${esc(v.nota || '—')}</td>
+        <td class="actions-cell">
+          <button class="icon-btn delete-btn del-venta-btn" data-sale-id="${esc(v.id || '')}" data-qty="${Number(v.cantidad)||0}" title="Eliminar venta y devolver stock">🗑</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function renderModal(){
+    const totalVendido = getSalesTotal(p);
+    openModal(`
+      <div class="modal-eyebrow">Historial · ${esc(s.name)}</div>
+      <div class="modal-title">${esc(p.producto)}</div>
+      <div class="modal-sub">
+        Stock actual: <strong>${fmtInt(p.stock)}</strong> u &nbsp;·&nbsp;
+        Total vendido: <strong>${fmtInt(totalVendido)}</strong> u
+      </div>
+      <div class="table-scroll" style="max-height:340px;overflow-y:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Fecha</th><th>Hora</th><th class="num">Unidades</th><th>Nota</th><th>Eliminar</th>
+          </tr></thead>
+          <tbody id="ventasHistorialBody">${buildRows()}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+        <button class="btn-secondary" id="ventasHistorialCloseBtn">Cerrar</button>
+      </div>
+    `);
+
+    document.getElementById('ventasHistorialCloseBtn').addEventListener('click', () => {
+      closeModal();
+      if (typeof onClosed === 'function') onClosed();
+    });
+
+    /* Delegar clicks en botones de eliminar */
+    document.getElementById('ventasHistorialBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.del-venta-btn');
+      if (!btn) return;
+      const saleId  = btn.dataset.saleId;
+      const saleQty = Number(btn.dataset.qty) || 0;
+
+      Swal.fire({
+        title: '¿Eliminar esta venta?',
+        html: `Se devolverán <strong>${fmtInt(saleQty)}</strong> unidad(es) al stock de <em>${esc(p.producto)}</em>.<br><small style="color:var(--text-faint)">Esta acción no se puede deshacer.</small>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#ab3a2c',
+        customClass: { popup: 'agromin-swal' }
+      }).then(result => {
+        if (!result.isConfirmed) return;
+
+        /* Buscar y eliminar la venta del array */
+        const idx = p.ventas.findIndex(v => v.id === saleId);
+        if (idx === -1){
+          showToast('error', 'No encontrada', 'No se pudo ubicar la venta en el historial.');
+          return;
+        }
+        p.ventas.splice(idx, 1);
+
+        /* Devolver unidades al stock */
+        p.stock = (Number(p.stock) || 0) + saleQty;
+
+        /* Recalcular totales del producto */
+        p.ventasTotal = getSalesTotal(p);
+        p.ultimaVenta = p.ventas.length ? p.ventas[p.ventas.length - 1].fecha : null;
+
+        /* Recalcular proveedor y guardar */
+        recalcSingleProduct(s, p);
+        recalcSupplierMeta(s);
+        saveState();
+        buildNav();
+        buildTopbar();
+
+        showToast('success', 'Venta eliminada', `+${fmtInt(saleQty)} u devueltas al stock.`);
+
+        /* Refrescar el body del modal sin cerrarlo */
+        const body = document.getElementById('ventasHistorialBody');
+        if (body) body.innerHTML = buildRows();
+
+        /* Actualizar subtitle del modal */
+        const sub = document.querySelector('#modalCard .modal-sub');
+        if (sub) sub.innerHTML = `Stock actual: <strong>${fmtInt(p.stock)}</strong> u &nbsp;·&nbsp; Total vendido: <strong>${fmtInt(getSalesTotal(p))}</strong> u`;
+      });
+    });
+  }
+
+  renderModal();
+}
+
 function attachVentasBehavior(){
   const downloadBtn = document.getElementById('downloadVentasExcelBtn');
   const supplierFilter = document.getElementById('ventasSupplierFilter');
@@ -6370,6 +6481,8 @@ function attachVentasBehavior(){
   const pageSizeSelect = document.getElementById('ventasPageSize');
   if (!downloadBtn || !tableBody || !supplierFilter || !prevBtn || !nextBtn || !pageNumber || !totalPagesEl || !pageSizeSelect) return;
 
+  const isAdmin = !isLimitedUser();
+  const colCount = isAdmin ? 9 : 8;
   let currentPage = 1;
   let pageSize = parseInt(pageSizeSelect.value, 10) || 15;
   let currentSupplier = 'all';
@@ -6406,14 +6519,26 @@ function attachVentasBehavior(){
         <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
         <td class="num">${fmtN(entry.product.stock, 0)}</td>
         <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
+        ${isAdmin ? `<td class="actions-cell"><button class="icon-btn detail-btn venta-historial-btn" data-uid="${esc(entry.product._uid)}" data-sidx="${entry.supplierIdx}" title="Ver y eliminar ventas">📋</button></td>` : ''}
       </tr>
-    `).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
+    `).join('') || `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
 
     pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
     totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
     prevBtn.disabled = currentPage <= 1;
     nextBtn.disabled = currentPage >= totalPages;
   }
+
+  /* Delegar click en botones de historial */
+  tableBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.venta-historial-btn');
+    if (!btn) return;
+    const supplierIdx = parseInt(btn.dataset.sidx, 10);
+    const uid = btn.dataset.uid;
+    openVentasHistorialModal(supplierIdx, uid, () => {
+      renderSalesTable();
+    });
+  });
 
   function exportVentas(){
     const salesProducts = buildSalesProducts();
