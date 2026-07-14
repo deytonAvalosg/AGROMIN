@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const dns = require('dns').promises;
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 
@@ -45,6 +46,7 @@ if (!MONGO_URI) {
   } else {
     console.error('No MongoDB URI-like value found in environment variables.');
   }
+  console.error('If your environment blocks SRV DNS lookups, set MONGO_DIRECT_URI with a direct cluster host list.');
   process.exit(1);
 }
 
@@ -53,24 +55,66 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname)));
 
-const client = new MongoClient(MONGO_URI, {
-  serverApi: {
-    version: '1',
-    strict: true,
-    deprecationErrors: true,
-  },
-  tls: true,
-  tlsAllowInvalidCertificates: true,
-  tlsAllowInvalidHostnames: true,
-  connectTimeoutMS: 30000,
-  serverSelectionTimeoutMS: 30000,
-  socketTimeoutMS: 45000,
-});
+async function createClient(uri) {
+  return new MongoClient(uri, {
+    serverApi: {
+      version: '1',
+      strict: true,
+      deprecationErrors: true,
+    },
+    tls: true,
+    tlsAllowInvalidCertificates: true,
+    tlsAllowInvalidHostnames: true,
+    connectTimeoutMS: 30000,
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+  });
+}
 
+let client;
 let collection;
 
+async function buildDirectUriFromSrv(uri) {
+  try {
+    const match = uri.match(/^mongodb\+srv:\/\/(.+?)@(.+?)(?:\/(.*))?$/i);
+    if (!match) return null;
+    const userPass = match[1];
+    const host = match[2];
+    const dbAndParams = match[3] || '';
+    const [dbName, query] = dbAndParams.split('?');
+    const srvName = `_mongodb._tcp.${host}`;
+    const records = await dns.resolveSrv(srvName);
+    const hosts = records.map(r => `${r.name}:${r.port}`).join(',');
+    const queryString = query ? `?${query}` : '';
+    return `mongodb://${userPass}@${hosts}/${dbName || 'agromin'}${queryString}`;
+  } catch (err) {
+    console.warn('Failed to build direct Mongo URI from SRV:', err.message || err);
+    return null;
+  }
+}
+
 async function connectToDatabase() {
-  await client.connect();
+  client = await createClient(MONGO_URI);
+  try {
+    await client.connect();
+  } catch (firstErr) {
+    console.warn('First MongoDB connection attempt failed.');
+    if (MONGO_URI.startsWith('mongodb+srv://')) {
+      console.warn('Attempting SRV fallback for mongodb+srv URI...');
+      const directUri = await buildDirectUriFromSrv(MONGO_URI);
+      if (directUri) {
+        console.warn('Using direct MongoDB URI fallback:', directUri.replace(/:[^:@]+@/, ':*****@'));
+        client = await createClient(directUri);
+        await client.connect();
+      } else {
+        console.error('SRV lookup failed. If your network blocks SRV DNS, set MONGO_DIRECT_URI in your environment with direct cluster hosts.');
+        throw firstErr;
+      }
+    } else {
+      throw firstErr;
+    }
+  }
+
   const db = client.db(DB_NAME);
   collection = db.collection(COLLECTION_NAME);
   await collection.createIndex({ userKey: 1 }, { unique: true });

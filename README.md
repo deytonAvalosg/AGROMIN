@@ -6,7 +6,8 @@ Este repositorio incluye el frontend en `index.html` y un backend ligero en `ser
 
 1. Copia `.env.example` a `.env`.
 2. Ajusta `MONGODB_URI` con tu cadena de conexión de MongoDB Atlas.
-3. Ejecuta:
+3. Si tu red no permite consultas SRV o si recibes errores de conexión, define `MONGO_DIRECT_URI` con los hosts directos de tu clúster.
+4. Ejecuta:
 
 ```bash
 npm install
