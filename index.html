@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AGROMIN · Sistema de Control de Costos e Inventario</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -645,6 +645,72 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
 .login-panel .modal-actions{ justify-content:flex-end; margin-top:22px; }
 #userBox{ display:flex; align-items:center; gap:10px; margin-left:auto; }
 #userBox .topbar-user{ font-weight:700; color:var(--text); }
+
+/* ---------- FILTER CHIPS (Todos / Óptimo / Stock bajo) ---------- */
+.filter-chips{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--text-dim);
+  transition: background .15s, border-color .15s, color .15s, transform .1s;
+  user-select: none;
+  white-space: nowrap;
+}
+.chip:hover{
+  background: rgba(60,122,46,0.08);
+  border-color: var(--lime);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.chip.active{
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #f6f8f1;
+  box-shadow: 0 2px 8px rgba(60,122,46,0.28);
+}
+.chip[data-filter="bajo"].active{
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 2px 8px rgba(184,118,30,0.28);
+}
+.chip[data-filter="optimo"].active{
+  background: var(--lime);
+  border-color: var(--lime);
+}
+
+/* ---------- ORIENTATION FIX ---------- */
+@media screen and (orientation: landscape) and (max-height: 500px){
+  #sidebar{
+    position: fixed;
+    left: -100%;
+    top: 0;
+    width: 240px;
+    height: 100vh;
+    z-index: 50;
+    transition: left .2s;
+  }
+  #sidebar.open{ left: 0; }
+  #main{ margin-left: 0; }
+  #topbar{ padding: 8px 14px; }
+  #content{ padding: 12px 14px 60px; }
+  .kpi-grid{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .chart-wrap{ height: 200px; }
+  .menu-btn{ display: flex !important; }
+}
 </style>
 </head>
 <body>
