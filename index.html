@@ -5355,12 +5355,12 @@ const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyAbq4IrgvjuQVZgmcyieOPrTomP_kTpar4',
   authDomain: 'basededatos-88a57.firebaseapp.com',
   projectId: 'basededatos-88a57',
-  storageBucket: 'basededatos-88a57.firebasestorage.app',
+  storageBucket: 'basededatos-88a57.appspot.com',
   messagingSenderId: '94353855766',
   appId: '1:94353855766:web:6efa2a9ecafe7cd05b6c37',
   measurementId: 'G-KG8PRK3ZNP'
 };
-let FIREBASE_ENABLED = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY');
+let FIREBASE_ENABLED = true;
 const FIRESTORE_COLLECTION = 'agromin_states';
 let FIREBASE_INITIALIZED = false;
 let FIREBASE_DB = null;
@@ -5486,6 +5486,7 @@ function initFirebase(){
     firebase.initializeApp(FIREBASE_CONFIG);
     FIREBASE_DB = firebase.firestore();
     FIREBASE_INITIALIZED = true;
+    console.log('Firebase initialized successfully');
   } catch (e){
     FIREBASE_ENABLED = false;
     console.warn('Firebase init failed:', e);
@@ -5498,15 +5499,33 @@ function getRemoteStateDoc(userKey){
 }
 
 async function loadRemoteState(userKey){
-  if (!FIREBASE_ENABLED || !userKey) return null;
+  if (!FIREBASE_ENABLED){
+    console.warn('loadRemoteState skipped: Firebase disabled');
+    return null;
+  }
+  if (!userKey){
+    console.warn('loadRemoteState skipped: missing userKey');
+    return null;
+  }
   initFirebase();
   const doc = getRemoteStateDoc(userKey);
-  if (!doc) return null;
+  if (!doc){
+    console.warn('loadRemoteState skipped: no Firestore document handle');
+    return null;
+  }
   try{
+    console.log('Loading remote state for user:', userKey);
     const snapshot = await doc.get();
-    if (!snapshot.exists) return null;
+    if (!snapshot.exists){
+      console.log('Remote state not found for user:', userKey);
+      return null;
+    }
     const data = snapshot.data();
-    if (!data || !data.state) return null;
+    if (!data || !data.state || !Array.isArray(data.state.suppliers) || data.state.suppliers.length === 0){
+      console.warn('Remote state invalid, empty or not ready for user:', userKey, data);
+      return null;
+    }
+    console.log('Remote state loaded for user:', userKey);
     return normalizeData(data.state);
   } catch (e){
     console.warn('Remote load failed:', e);
@@ -5515,15 +5534,27 @@ async function loadRemoteState(userKey){
 }
 
 async function saveRemoteState(userKey){
-  if (!FIREBASE_ENABLED || !userKey) return;
+  if (!FIREBASE_ENABLED){
+    console.warn('saveRemoteState skipped: Firebase disabled');
+    return;
+  }
+  if (!userKey){
+    console.warn('saveRemoteState skipped: missing userKey');
+    return;
+  }
   initFirebase();
   const doc = getRemoteStateDoc(userKey);
-  if (!doc) return;
+  if (!doc){
+    console.warn('saveRemoteState skipped: no Firestore document handle');
+    return;
+  }
   try{
+    console.log('Saving remote state for user:', userKey);
     await doc.set({
       state: DATA,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    console.log('Remote state saved for user:', userKey);
   } catch (e){
     console.warn('Remote save failed:', e);
   }
