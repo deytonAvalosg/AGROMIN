@@ -1,0 +1,12 @@
+{
+  "name": "agromin",
+  "version": "1.0.0",
+  "description": "Sistema de Control de Costos e Inventario",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
