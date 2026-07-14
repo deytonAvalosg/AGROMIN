@@ -735,7 +735,6 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
       <button class="menu-btn" id="menuBtn">☰</button>
       <div class="ticker" id="ticker"></div>
       <div id="userBox"></div>
-      <span id="syncIndicator" style="font-family:var(--mono);font-size:11px;color:var(--text-faint);white-space:nowrap;margin-left:auto;margin-right:8px;"></span>
       <div id="search-box">
         <span>⌕</span>
         <input id="globalSearch" placeholder="Buscar producto en todos los proveedores…" />
@@ -5585,7 +5584,6 @@ async function loadCloudData(){
 
     if (error || !row || !row.data) return;
 
-    /* Guardar el timestamp base — el polling lo usará como referencia */
     const incomingTs = row.updated_at;
 
     const normalized = cleanupLoadedSuppliers(normalizeData(row.data));
@@ -5594,15 +5592,15 @@ async function loadCloudData(){
       return;
     }
 
-    /* Comparar solo timestamps: si localStorage ya tenía estos datos, no re-renderizar */
+    /* Si el localStorage ya tiene este timestamp exacto, no re-renderizar */
     const localTs = localStorage.getItem('agromin_cloud_ts');
     if (localTs && localTs === incomingTs){
-      _lastCloudTs = incomingTs; /* mismos datos que ya tenemos */
+      _lastCloudTs = incomingTs;
       return;
     }
 
-    DATA      = normalized;
-    SUPPLIERS = DATA.suppliers;
+    DATA         = normalized;
+    SUPPLIERS    = DATA.suppliers;
     _lastCloudTs = incomingTs;
 
     try{
@@ -5612,6 +5610,7 @@ async function loadCloudData(){
       localStorage.setItem('agromin_cloud_ts', incomingTs);
     } catch(e){}
 
+    /* Al arrancar no hay UI activa aún, render es seguro */
     initialRecalc();
     buildNav();
     buildTopbar();
@@ -5619,17 +5618,11 @@ async function loadCloudData(){
   } catch(e){ /* silencioso */ }
 }
 
-/* ---- Indicador discreto de estado de conexión ---- */
+/* ---- Indicador discreto ---- */
 function setSyncStatus(state){
   const el = document.getElementById('syncIndicator');
   if (!el) return;
-  /* Solo mostrar en caso de error real; en operación normal queda vacío */
-  if (state === 'error'){
-    el.textContent = '⚠ Sin conexión';
-    el.style.color = 'var(--rust)';
-  } else {
-    el.textContent = '';
-  }
+  el.textContent = '';  /* siempre vacío — sin indicadores visibles */
 }
 
 /* ---- Sistema de sincronización ---- */
@@ -5637,7 +5630,18 @@ let _realtimeChannel = null;
 let _pollInterval    = null;
 let _lastCloudTs     = null;
 
-/* Aplica datos de la nube — solo se llama cuando updated_at es distinto al último conocido */
+/* Comprueba si hay UI sensible abierta (menú desplegable, modal) */
+function _uiIsBusy(){
+  const modal = document.getElementById('modalOverlay');
+  if (modal && modal.classList.contains('open')) return true;
+  const menu = document.querySelector('.user-menu-content.open');
+  if (menu) return true;
+  return false;
+}
+
+/* Aplica datos de la nube de forma segura:
+   - Actualiza DATA/SUPPLIERS siempre (en memoria)
+   - Re-renderiza SOLO si no hay menú/modal abierto */
 function applyCloudPayload(rawData, cloudTs){
   try{
     if (!rawData) return false;
@@ -5651,10 +5655,14 @@ function applyCloudPayload(rawData, cloudTs){
       const j = JSON.stringify(normalized);
       localStorage.setItem(STORAGE_KEY,        j);
       localStorage.setItem(STORAGE_BACKUP_KEY, j);
+      localStorage.setItem('agromin_cloud_ts', cloudTs);
     } catch(e){}
 
     _lastCloudTs = cloudTs;
-    try{ localStorage.setItem('agromin_cloud_ts', cloudTs); } catch(e){}
+
+    /* No interrumpir si el usuario tiene algo abierto */
+    if (_uiIsBusy()) return true;
+
     initialRecalc();
     buildNav();
     buildTopbar();
