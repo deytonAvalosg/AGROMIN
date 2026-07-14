@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg: #f3f5ee;
@@ -226,40 +227,6 @@ a{ color: inherit; }
   display:flex; align-items:center; justify-content:space-between;
 }
 .panel-title .hint{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); font-weight:400; }
-
-.catalog-grid{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(120px,1fr));
-  gap: 12px;
-  margin-top: 16px;
-}
-.catalog-card{
-  background: var(--panel-2);
-  border: 1px solid var(--line-soft);
-  border-radius: 14px;
-  padding: 18px 16px;
-  display:flex;
-  flex-direction:column;
-  justify-content:space-between;
-}
-.catalog-count{
-  font-family: var(--display);
-  font-size: 32px;
-  font-weight:700;
-  margin-bottom: 8px;
-  color: var(--text);
-}
-.catalog-label{
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.catalog-card.optimo{ background: rgba(60,122,46,0.12); border-color: rgba(60,122,46,0.18); }
-.catalog-card.optimo .catalog-count{ color: var(--lime); }
-.catalog-card.stockbajo{ background: rgba(171,58,44,0.12); border-color: rgba(171,58,44,0.18); }
-.catalog-card.stockbajo .catalog-count{ color: var(--rust); }
 
 .chart-row{ display:grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
 @media (max-width: 980px){ .chart-row{ grid-template-columns: 1fr; } }
@@ -5378,13 +5345,17 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+/* ---- SUPABASE CONFIG ---- */
+const SUPABASE_URL  = 'https://aexpqfvjbbytmiuknriz.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_0j2jMZGhRkhIvjZj2kTqvw_hU3Qklpq';
+const _supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const CLOUD_ROW_ID  = 'main';
+
 const STORAGE_KEY = 'agromin_state_v1';
 const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
 const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
 const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
-const MONGO_ENABLED = true;
-const MONGO_API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:3000';
 const USERS = {
   AGROMIN: { password: '123', role: 'admin' },
   SOLUCIONES: { password: '123', role: 'limited' }
@@ -5484,94 +5455,77 @@ function cleanupLoadedSuppliers(normalized){
 }
 
 function loadPersistedData(){
+  /* Carga sincrónica desde localStorage como arranque rápido.
+     La nube se aplica después en initApp(). */
   try{
     const primary = localStorage.getItem(STORAGE_KEY);
-    const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
+    const backup  = localStorage.getItem(STORAGE_BACKUP_KEY);
     const candidates = [primary, backup].filter(Boolean);
-
     for (const raw of candidates){
       try{
-        const parsed = JSON.parse(raw);
+        const parsed     = JSON.parse(raw);
         const normalized = cleanupLoadedSuppliers(normalizeData(parsed));
         if (Array.isArray(normalized?.suppliers) && normalized.suppliers.length > 0){
           return normalized;
         }
-      } catch (e) {}
+      } catch(e){}
     }
-  } catch (e) {}
+  } catch(e){}
   return normalizeData(BASE_DATA);
 }
-async function loadRemoteState(userKey){
-  if (!MONGO_ENABLED){
-    console.warn('loadRemoteState skipped: MongoDB disabled');
-    return null;
-  }
-  if (!userKey){
-    console.warn('loadRemoteState skipped: missing userKey');
-    return null;
-  }
-  try{
-    console.log('Loading remote state for user:', userKey);
-    const response = await fetch(`${MONGO_API_BASE}/state/${encodeURIComponent(userKey)}`);
-    if (response.status === 404){
-      console.log('Remote state not found for user:', userKey);
-      return null;
-    }
-    if (!response.ok){
-      const errorText = await response.text();
-      throw new Error(errorText || response.statusText);
-    }
-    const data = await response.json();
-    if (!data || !data.state || !Array.isArray(data.state.suppliers) || data.state.suppliers.length === 0){
-      console.warn('Remote state invalid, empty or not ready for user:', userKey, data);
-      return null;
-    }
-    console.log('Remote state loaded for user:', userKey);
-    return normalizeData(data.state);
-  } catch (e){
-    console.warn('Remote load failed:', e);
-    showToast('error', 'Error al cargar remoto', e.message || 'No se pudo obtener los datos desde MongoDB.');
-    return null;
-  }
-}
 
-async function saveRemoteState(userKey){
-  if (!MONGO_ENABLED){
-    console.warn('saveRemoteState skipped: MongoDB disabled');
-    return;
-  }
-  if (!userKey){
-    console.warn('saveRemoteState skipped: missing userKey');
-    return;
-  }
-  try{
-    console.log('Saving remote state for user:', userKey);
-    const response = await fetch(`${MONGO_API_BASE}/state/${encodeURIComponent(userKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: DATA })
-    });
-    if (!response.ok){
-      const errorText = await response.text();
-      throw new Error(errorText || response.statusText);
-    }
-    console.log('Remote state saved for user:', userKey);
-  } catch (e){
-    console.warn('Remote save failed:', e);
-    showToast('error', 'Error al guardar remoto', e.message || 'No se pudo guardar el estado en MongoDB.');
-  }
-}
-
+/* Guarda en localStorage Y en Supabase (nube) */
+let _saveTimer = null;
 function saveState(){
   try{
     const payload = JSON.stringify(DATA);
-    localStorage.setItem(STORAGE_KEY, payload);
+    localStorage.setItem(STORAGE_KEY,        payload);
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
-    const userKey = getAuthUser();
-    if (userKey && !isSessionExpired()){
-      void saveRemoteState(userKey);
-    }
-  } catch(e) {}
+  } catch(e){}
+
+  /* Debounce: espera 800 ms sin nuevos cambios antes de subir a la nube */
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try{
+      await _supa.from('agromin_state').upsert(
+        { id: CLOUD_ROW_ID, data: DATA, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      );
+    } catch(e){ console.warn('Supabase save error:', e); }
+  }, 800);
+}
+
+/* Carga desde la nube y re-renderiza si hay datos más nuevos */
+async function loadCloudData(){
+  try{
+    const { data: rows, error } = await _supa
+      .from('agromin_state')
+      .select('data, updated_at')
+      .eq('id', CLOUD_ROW_ID)
+      .single();
+
+    if (error || !rows || !rows.data) return;
+
+    const normalized = cleanupLoadedSuppliers(normalizeData(rows.data));
+    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return;
+
+    /* Aplica los datos de la nube */
+    DATA      = normalized;
+    SUPPLIERS = DATA.suppliers;
+
+    /* Actualiza localStorage como caché local */
+    try{
+      const payload = JSON.stringify(DATA);
+      localStorage.setItem(STORAGE_KEY,        payload);
+      localStorage.setItem(STORAGE_BACKUP_KEY, payload);
+    } catch(e){}
+
+    /* Re-renderiza la UI con los datos actualizados */
+    initialRecalc();
+    buildNav();
+    buildTopbar();
+    render();
+  } catch(e){ console.warn('Supabase load error:', e); }
 }
 function showToast(icon, title, text=''){
   Swal.fire({
@@ -5629,18 +5583,6 @@ function registerProductSale(s, product, cantidad, nota = ''){
 
 let DATA = loadPersistedData();
 let SUPPLIERS = DATA.suppliers;
-async function loadUserStateOnInit(){
-  if (!MONGO_ENABLED) return;
-  const userKey = getAuthUser();
-  if (!userKey || isSessionExpired()) return;
-  const remote = await loadRemoteState(userKey);
-  if (remote){
-    DATA = remote;
-    SUPPLIERS = DATA.suppliers;
-    saveState();
-  }
-}
-
 // Remove supplier named 'Villafuerte' (if present) per user request
 try{
   const idxVill = (DATA.suppliers||[]).findIndex(s => (s.name||'').toLowerCase().includes('villafuerte'));
@@ -6148,19 +6090,8 @@ function attachLoginBehavior(){
     if (userKey && pass === USERS[userKey].password){
       localStorage.setItem(AUTH_KEY, userKey);
       localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
-      const next = async () => {
-        if (MONGO_ENABLED){
-          const remote = await loadRemoteState(userKey);
-          if (remote){
-            DATA = remote;
-            SUPPLIERS = DATA.suppliers;
-            saveState();
-          }
-        }
-        window.location.hash = 'dashboard';
-        buildNav(); buildTopbar(); render();
-      };
-      next();
+      window.location.hash = 'dashboard';
+      buildNav(); buildTopbar(); render();
     } else {
       Swal.fire({ title: 'Acceso denegado', text: 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
     }
@@ -6242,24 +6173,6 @@ function viewDashboard(){
         <div class="kpi-label">Productos en catálogo</div>
         <div class="kpi-value">${fmtInt(totalProductos)}</div>
         <div class="kpi-sub">${totalOptimo} óptimo · ${totalStockBajo} stock bajo</div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Catálogo de productos</div>
-      <div class="catalog-grid">
-        <div class="catalog-card">
-          <span class="catalog-label">Todos</span>
-          <span class="catalog-count">${fmtInt(totalProductos)}</span>
-        </div>
-        <div class="catalog-card optimo">
-          <span class="catalog-label">Óptimo</span>
-          <span class="catalog-count">${fmtInt(totalOptimo)}</span>
-        </div>
-        <div class="catalog-card stockbajo">
-          <span class="catalog-label">Stock bajo</span>
-          <span class="catalog-count">${fmtInt(totalStockBajo)}</span>
-        </div>
       </div>
     </div>
 
@@ -8333,19 +8246,18 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 });
 
 /* ---------------------------- INIT ---------------------------- */
-(async () => {
-  await loadUserStateOnInit();
-  initialRecalc();
-  buildNav();
-  buildTopbar();
-  setupAuthActivityWatcher();
-  render();
-})();
+initialRecalc();
+buildNav();
+buildTopbar();
+setupAuthActivityWatcher();
+render();
+
+/* Carga datos de la nube en segundo plano y actualiza la UI */
+loadCloudData();
 
 </script>
 </body>
 </html>
-
 
 
 
