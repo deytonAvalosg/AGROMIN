@@ -5409,36 +5409,71 @@ async function initSupabaseAuth(){
   });
 }
 
-// ---- REALTIME SYNC ----
+// ---- REALTIME SYNC + POLLING FALLBACK ----
 let _realtimeChannel = null;
-let _lastSavedAt = null; // para evitar que el propio dispositivo se actualice a sí mismo
+let _lastSavedAt = null;     // timestamp del último guardado propio (para no recargar innecesariamente)
+let _lastKnownRemoteTs = null; // último updated_at conocido del servidor
+let _pollInterval = null;
+
+async function checkAndApplyRemoteChanges(){
+  if (!_sbSession) return;
+  try {
+    const { data, error } = await _supabase
+      .from(CLOUD_TABLE)
+      .select('updated_at')
+      .eq('id', CLOUD_ROW_ID)
+      .maybeSingle();
+    if (error || !data) return;
+    const remoteTs = data.updated_at;
+    // Si el servidor tiene un timestamp más nuevo que lo que guardamos nosotros y distinto al último conocido
+    if (remoteTs && remoteTs !== _lastSavedAt && remoteTs !== _lastKnownRemoteTs) {
+      _lastKnownRemoteTs = remoteTs;
+      const loaded = await loadFromCloud();
+      if (loaded) {
+        render();
+        showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
+      }
+    }
+  } catch(e) {}
+}
 
 function startRealtimeSync(){
-  if (_realtimeChannel) return; // ya activo
-  _realtimeChannel = _supabase
-    .channel('agromin_state_changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: CLOUD_TABLE, filter: `id=eq.${CLOUD_ROW_ID}` },
-      async (payload) => {
-        // Si el updated_at remoto es más reciente que el último que guardamos nosotros, recargar
-        const remoteTs = payload?.new?.updated_at;
-        if (remoteTs && remoteTs !== _lastSavedAt) {
-          const loaded = await loadFromCloud();
-          if (loaded) {
-            render();
-            showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
+  // 1. Realtime via WebSocket (instantáneo si está habilitado en Supabase)
+  if (!_realtimeChannel) {
+    _realtimeChannel = _supabase
+      .channel('agromin_state_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: CLOUD_TABLE, filter: `id=eq.${CLOUD_ROW_ID}` },
+        async (payload) => {
+          const remoteTs = payload?.new?.updated_at;
+          if (remoteTs && remoteTs !== _lastSavedAt) {
+            _lastKnownRemoteTs = remoteTs;
+            const loaded = await loadFromCloud();
+            if (loaded) {
+              render();
+              showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
+            }
           }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
+  }
+
+  // 2. Polling cada 10 segundos como respaldo (funciona siempre)
+  if (!_pollInterval) {
+    _pollInterval = setInterval(checkAndApplyRemoteChanges, 10000);
+  }
 }
 
 function stopRealtimeSync(){
   if (_realtimeChannel) {
     _supabase.removeChannel(_realtimeChannel);
     _realtimeChannel = null;
+  }
+  if (_pollInterval) {
+    clearInterval(_pollInterval);
+    _pollInterval = null;
   }
 }
 
