@@ -7181,7 +7181,10 @@ function viewPriceSchemas(){
                     <option value="TON"${s.schema==='TON'?' selected':''}>TON</option>
                   </select>
                 </td>
-                <td><button class="btn-primary btn-change-schema" data-supidx="${i}">Aplicar</button></td>
+                <td class="actions-cell">
+                  <button class="btn-primary btn-change-schema" data-supidx="${i}">Aplicar</button>
+                  <button class="icon-btn delete-btn btn-delete-supplier" data-supidx="${i}" title="Eliminar proveedor">🗑</button>
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -7225,9 +7228,41 @@ function attachPriceSchemaBehavior(){
       });
     });
   });
-}
 
-/* ---------------------------- VIEW: SUPPLIER ---------------------------- */
+  // Eliminar proveedor
+  document.querySelectorAll('.btn-delete-supplier').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = parseInt(btn.dataset.supidx, 10);
+      if (Number.isNaN(idx) || !SUPPLIERS[idx]) return;
+      const supplier = SUPPLIERS[idx];
+
+      const { value: typed } = await Swal.fire({
+        title: 'Eliminar proveedor',
+        html: `Esta acción es <strong>irreversible</strong> y eliminará todos los productos y datos de <strong>${esc(supplier.name)}</strong>.<br><br>Escribe el nombre exacto del proveedor para confirmar:`,
+        input: 'text',
+        inputPlaceholder: supplier.name,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+        customClass: { popup: 'agromin-swal' },
+        inputValidator: (value) => {
+          if (!value) return 'Debes escribir el nombre del proveedor.';
+          if (value.trim() !== supplier.name.trim()) return 'El nombre no coincide exactamente.';
+        }
+      });
+
+      if (typed === undefined) return; // cancelado
+      SUPPLIERS.splice(idx, 1);
+      DATA.suppliers = SUPPLIERS;
+      saveState();
+      buildNav();
+      buildTopbar();
+      render();
+      showToast('success', 'Proveedor eliminado', `${supplier.name} fue eliminado del sistema.`);
+    });
+  });
+}
 
 function schemaColumns(schema){
   if (schema === 'SOLES'){
