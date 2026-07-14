@@ -5429,10 +5429,7 @@ async function checkAndApplyRemoteChanges(){
     if (remoteTs && remoteTs !== _lastSavedAt && remoteTs !== _lastKnownRemoteTs) {
       _lastKnownRemoteTs = remoteTs;
       const loaded = await loadFromCloud();
-      if (loaded) {
-        render();
-        showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
-      }
+      if (loaded) render();
     }
   } catch(e) {}
 }
@@ -5450,10 +5447,7 @@ function startRealtimeSync(){
           if (remoteTs && remoteTs !== _lastSavedAt) {
             _lastKnownRemoteTs = remoteTs;
             const loaded = await loadFromCloud();
-            if (loaded) {
-              render();
-              showToast('info', 'Datos actualizados', 'Se sincronizaron cambios desde otro dispositivo.');
-            }
+            if (loaded) render();
           }
         }
       )
