@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AGROMIN · Sistema de Control de Costos e Inventario</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -30,12 +30,6 @@
   --display: 'Space Grotesk', sans-serif;
 }
 *{box-sizing:border-box;}
-/* Sin animaciones ni transiciones en toda la app */
-*, *::before, *::after {
-  transition: none !important;
-  animation: none !important;
-  animation-duration: 0s !important;
-}
 html,body{margin:0;padding:0;}
 body{
   background: var(--bg);
@@ -565,8 +559,8 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
 
 @media (max-width: 980px){
   #app{ flex-direction: column; }
-  #sidebar{ position: fixed; left:0; top:0; width:280px; height:100vh; z-index:50; box-shadow: 20px 0 40px rgba(0,0,0,0.12); display:none; }
-  #sidebar.open{ display:flex; }
+  #sidebar{ position: fixed; left:-100%; top:0; width:280px; height:100vh; z-index:50; transition:left .2s; box-shadow: 20px 0 40px rgba(0,0,0,0.12); }
+  #sidebar.open{ left:0; }
   #main{ margin-left: 0; }
   #content{ padding: 18px 14px 80px; }
   #topbar{ padding: 12px 14px; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
@@ -651,72 +645,6 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
 .login-panel .modal-actions{ justify-content:flex-end; margin-top:22px; }
 #userBox{ display:flex; align-items:center; gap:10px; margin-left:auto; }
 #userBox .topbar-user{ font-weight:700; color:var(--text); }
-
-/* ---------- FILTER CHIPS (Todos / Óptimo / Stock bajo) ---------- */
-.filter-chips{
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.chip{
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1.5px solid var(--line);
-  background: var(--panel);
-  color: var(--text-dim);
-  transition: background .15s, border-color .15s, color .15s, transform .1s;
-  user-select: none;
-  white-space: nowrap;
-}
-.chip:hover{
-  background: rgba(60,122,46,0.08);
-  border-color: var(--lime);
-  color: var(--text);
-  transform: translateY(-1px);
-}
-.chip.active{
-  background: var(--lime);
-  border-color: var(--lime);
-  color: #f6f8f1;
-  box-shadow: 0 2px 8px rgba(60,122,46,0.28);
-}
-.chip[data-filter="bajo"].active{
-  background: var(--amber);
-  border-color: var(--amber);
-  box-shadow: 0 2px 8px rgba(184,118,30,0.28);
-}
-.chip[data-filter="optimo"].active{
-  background: var(--lime);
-  border-color: var(--lime);
-}
-
-/* ---------- ORIENTATION FIX ---------- */
-@media screen and (orientation: landscape) and (max-height: 500px){
-  #sidebar{
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 240px;
-    height: 100vh;
-    z-index: 50;
-    display: none;
-  }
-  #sidebar.open{ display: flex; }
-  #main{ margin-left: 0; }
-  #topbar{ padding: 8px 14px; }
-  #content{ padding: 12px 14px 60px; }
-  .kpi-grid{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  .chart-wrap{ height: 200px; }
-  .menu-btn{ display: flex !important; }
-}
 </style>
 </head>
 <body>
@@ -5404,11 +5332,6 @@ const AGROMIN_DATA = {
    AGROMIN — Sistema de Control de Costos e Inventario
    ========================================================================== */
 
-/* Deshabilitar todas las animaciones de Chart.js globalmente */
-Chart.defaults.animation = false;
-Chart.defaults.animations = false;
-Chart.defaults.transitions = {};
-
 const fmtS = (n) => n === null || n === undefined || isNaN(n) ? '—' :
   'S/ ' + Number(n).toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmtUSD = (n) => n === null || n === undefined || isNaN(n) ? '—' :
@@ -5422,40 +5345,85 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* ---- SUPABASE CONFIG ---- */
-const SUPABASE_URL  = 'https://aexpqfvjbbytmiuknriz.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_0j2jMZGhRkhIvjZj2kTqvw_hU3Qklpq';
-const _supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-const CLOUD_ROW_ID  = 'main';
+/* ====================== SUPABASE CONFIG ====================== */
+const SUPABASE_URL = 'https://0j2jMZGhRkhIvjZj2kTqvw.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_0j2jMZGhRkhIvjZj2kTqvw_hU3Qklpq';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Mapeo usuario → email de Supabase
+const USER_EMAIL_MAP = {
+  AGROMIN: 'agromin@costos.sa'
+};
+
+// Solo existe el rol admin
+function getAuthRole(){ return 'admin'; }
+function isLimitedUser(){ return false; }
 
 const STORAGE_KEY = 'agromin_state_v1';
 const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
 const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
-const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
-const USERS = {
-  AGROMIN: { password: '123', role: 'admin' }
-};
+const AUTH_TIMEOUT_MS = 60 * 60 * 1000; // 1 hora
 const BASE_DATA = AGROMIN_DATA;
 
+// Estado de sesión Supabase en memoria
+let _sbSession = null;
+let _supabaseReady = false;
+
+// Inicializar sesión desde Supabase al cargar
+async function initSupabaseAuth(){
+  try {
+    const { data } = await _supabase.auth.getSession();
+    _sbSession = data?.session || null;
+    if (_sbSession) {
+      // Persistir en localStorage para compatibilidad con la lógica de UI existente
+      const userKey = getUserKeyFromEmail(_sbSession.user?.email);
+      if (userKey) {
+        localStorage.setItem(AUTH_KEY, userKey);
+        localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
+      }
+    }
+  } catch(e) { console.warn('Supabase init error:', e); }
+  _supabaseReady = true;
+
+  // Escuchar cambios de sesión (login/logout desde otro dispositivo)
+  _supabase.auth.onAuthStateChange(async (event, session) => {
+    _sbSession = session;
+    if (event === 'SIGNED_IN' && session) {
+      const userKey = getUserKeyFromEmail(session.user?.email);
+      if (userKey) {
+        localStorage.setItem(AUTH_KEY, userKey);
+        localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
+      }
+      // Recargar datos desde nube al iniciar sesión
+      await loadFromCloud();
+      buildNav(); buildTopbar(); render();
+    } else if (event === 'SIGNED_OUT') {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(AUTH_LAST_ACTIVITY);
+      buildNav(); buildTopbar(); render();
+    }
+  });
+}
+
+function getUserKeyFromEmail(email){
+  if (!email) return null;
+  return Object.keys(USER_EMAIL_MAP).find(k => USER_EMAIL_MAP[k] === email) || null;
+}
+
 function cloneData(data){ return JSON.parse(JSON.stringify(data)); }
+
 function findUserKey(username){
   if (!username) return null;
   const normalized = String(username).trim().toUpperCase();
-  return Object.keys(USERS).find(key => key.toUpperCase() === normalized) || null;
+  return Object.keys(USER_EMAIL_MAP).find(key => key.toUpperCase() === normalized) || null;
 }
 function getAuthUser(){ return localStorage.getItem(AUTH_KEY); }
-function getAuthRole(){
-  const user = getAuthUser();
-  const key = findUserKey(user);
-  return key ? USERS[key].role : null;
-}
-function isLimitedUser(){
-  return getAuthRole() === 'limited';
-}
 function isAuthenticated(){
   const user = getAuthUser();
   const key = findUserKey(user);
+  // Si hay sesión Supabase activa, siempre autenticado
+  if (_sbSession && key) return true;
   return !!key && !isSessionExpired();
 }
 function isSessionExpired(){
@@ -5472,6 +5440,73 @@ function clearAuth(){
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(AUTH_LAST_ACTIVITY);
 }
+
+/* ====================== CLOUD SYNC ====================== */
+const CLOUD_TABLE  = 'agromin_state';
+const CLOUD_ROW_ID = 'main'; // fila única que guarda todo el estado
+
+async function loadFromCloud(){
+  try {
+    const { data, error } = await _supabase
+      .from(CLOUD_TABLE)
+      .select('payload')
+      .eq('id', CLOUD_ROW_ID)
+      .maybeSingle();
+    if (error) { console.warn('Cloud load error:', error.message); return false; }
+    if (data?.payload){
+      const parsed = JSON.parse(data.payload);
+      const normalized = cleanupLoadedSuppliers(normalizeData(parsed));
+      if (Array.isArray(normalized?.suppliers) && normalized.suppliers.length > 0){
+        // Actualizar caché local y estado en memoria
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        localStorage.setItem(STORAGE_BACKUP_KEY, JSON.stringify(normalized));
+        DATA = normalized;
+        SUPPLIERS = DATA.suppliers;
+        initialRecalc();
+        return true;
+      }
+    }
+  } catch(e){ console.warn('Cloud load exception:', e); }
+  return false;
+}
+
+async function saveToCloud(){
+  if (!_sbSession) return; // Solo sincronizar si hay sesión activa
+  try {
+    const payload = JSON.stringify(DATA);
+    const { error } = await _supabase
+      .from(CLOUD_TABLE)
+      .upsert({ id: CLOUD_ROW_ID, payload, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    if (error) console.warn('Cloud save error:', error.message);
+  } catch(e){ console.warn('Cloud save exception:', e); }
+}
+
+// Indicador visual de sincronización
+function showSyncIndicator(status){
+  let el = document.getElementById('syncIndicator');
+  if (!el){
+    el = document.createElement('span');
+    el.id = 'syncIndicator';
+    el.style.cssText = 'font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:999px;margin-left:8px;transition:all .3s;';
+    const ticker = document.getElementById('ticker');
+    if (ticker) ticker.appendChild(el);
+  }
+  if (status === 'saving'){
+    el.textContent = '⟳ Guardando…';
+    el.style.background = 'rgba(184,118,30,0.12)';
+    el.style.color = 'var(--amber)';
+  } else if (status === 'ok'){
+    el.textContent = '✓ Sincronizado';
+    el.style.background = 'rgba(60,122,46,0.1)';
+    el.style.color = 'var(--lime)';
+    setTimeout(() => { if (el) el.textContent = ''; }, 2500);
+  } else if (status === 'error'){
+    el.textContent = '⚠ Sin conexión (guardado local)';
+    el.style.background = 'rgba(171,58,44,0.1)';
+    el.style.color = 'var(--rust)';
+    setTimeout(() => { if (el) el.textContent = ''; }, 4000);
+  }
+}
 function ensureProductIdentity(product, supplierName, index){
   if (!product._uid) product._uid = `${supplierName}-${index}-${Math.random().toString(36).slice(2,8)}`;
   if (product.isActive === undefined) product.isActive = true;
@@ -5479,17 +5514,15 @@ function ensureProductIdentity(product, supplierName, index){
   return product;
 }
 function normalizeData(data){
-  /* IMPORTANTE: NO mezclar con BASE_DATA — los datos guardados son la fuente de verdad.
-     Solo asegurar que la estructura sea válida y los campos requeridos existan. */
   const normalized = cloneData(data || BASE_DATA);
   if (!normalized.cambioDolar) normalized.cambioDolar = cloneData(BASE_DATA.cambioDolar);
   normalized.suppliers = (normalized.suppliers || []).map((s, idx) => {
-    /* NO mezclar con baseSupplier — usar solo los datos guardados */
-    const supplier = { ...s };
+    const baseSupplier = BASE_DATA.suppliers?.[idx] || {};
+    const supplier = { ...cloneData(baseSupplier), ...s };
     supplier.products = Array.isArray(supplier.products) ? supplier.products : [];
     supplier.inactiveProducts = Array.isArray(supplier.inactiveProducts) ? supplier.inactiveProducts : [];
     supplier.products = supplier.products.map((p, pIdx) => {
-      const prod = { ...p };
+      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
       ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
       prod.isActive = true;
       prod.deletedAt = null;
@@ -5502,7 +5535,7 @@ function normalizeData(data){
       return prod;
     });
     supplier.inactiveProducts = supplier.inactiveProducts.map((p, pIdx) => {
-      const prod = { ...p };
+      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
       ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
       prod.isActive = false;
       if (!prod.deletedAt) prod.deletedAt = new Date().toISOString();
@@ -5510,7 +5543,7 @@ function normalizeData(data){
       prod.lotes = Array.isArray(prod.lotes) ? prod.lotes : [];
       return prod;
     });
-    supplier.meta = supplier.meta || {};
+    supplier.meta = { ...(baseSupplier.meta || {}), ...(supplier.meta || {}) };
     return supplier;
   });
   return normalized;
@@ -5533,232 +5566,32 @@ function cleanupLoadedSuppliers(normalized){
 }
 
 function loadPersistedData(){
-  /* Carga sincrónica desde localStorage como arranque rápido.
-     La nube se aplica después en initApp(). */
   try{
     const primary = localStorage.getItem(STORAGE_KEY);
-    const backup  = localStorage.getItem(STORAGE_BACKUP_KEY);
+    const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
     const candidates = [primary, backup].filter(Boolean);
+
     for (const raw of candidates){
       try{
-        const parsed     = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
         const normalized = cleanupLoadedSuppliers(normalizeData(parsed));
         if (Array.isArray(normalized?.suppliers) && normalized.suppliers.length > 0){
           return normalized;
         }
-      } catch(e){}
+      } catch (e) {}
     }
-  } catch(e){}
+  } catch (e) {}
   return normalizeData(BASE_DATA);
 }
-
-/* Guarda en localStorage Y en Supabase (nube) */
-let _saveTimer       = null;
-let _isSavingToCloud = false;
-
 function saveState(){
-  /* Guardar en localStorage inmediatamente */
   try{
     const payload = JSON.stringify(DATA);
-    localStorage.setItem(STORAGE_KEY,        payload);
+    localStorage.setItem(STORAGE_KEY, payload);
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
-  } catch(e){}
-
-  /* Marcar como "guardando" YA — antes del timeout — para que pollOnce no sobreescriba */
-  _isSavingToCloud = true;
-
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(async () => {
-    try{
-      const ts = new Date().toISOString();
-      const { error } = await _supa.from('agromin_state').upsert(
-        { id: CLOUD_ROW_ID, data: DATA, updated_at: ts },
-        { onConflict: 'id' }
-      );
-      if (error){
-        console.error('Supabase save error:', error);
-        showToast('error', '⚠ Error al guardar: ' + (error.message || error.code || JSON.stringify(error)), '');
-      } else {
-        _lastCloudTs = ts;
-        try{ localStorage.setItem('agromin_cloud_ts', ts); } catch(e){}
-        showToast('success', '☁ Guardado en nube', '');
-      }
-    } catch(e){
-      console.error('saveState exception:', e);
-      showToast('error', '⚠ Error: ' + (e.message || 'Sin conexión'), '');
-    }
-    _isSavingToCloud = false;
-    _saveTimer = null;
-  }, 600);
-}
-
-/* Carga desde la nube al arrancar — solo aplica si los datos son más nuevos que los locales */
-async function loadCloudData(){
-  try{
-    const { data: row, error } = await _supa
-      .from('agromin_state')
-      .select('data, updated_at')
-      .eq('id', CLOUD_ROW_ID)
-      .single();
-
-    if (error || !row || !row.data) return;
-
-    const incomingTs  = row.updated_at;
-    const localTs     = localStorage.getItem('agromin_cloud_ts');
-
-    /* Si el localStorage tiene un timestamp MÁS RECIENTE que la nube,
-       no sobreescribir — nuestros datos locales son más nuevos */
-    if (localTs && localTs >= incomingTs){
-      _lastCloudTs = incomingTs; /* marcar el ts de la nube para que el polling no lo re-aplique */
-      return;
-    }
-
-    /* La nube tiene datos más nuevos → aplicar */
-    const normalized = cleanupLoadedSuppliers(normalizeData(row.data));
-    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0){
-      _lastCloudTs = incomingTs;
-      return;
-    }
-
-    DATA         = normalized;
-    SUPPLIERS    = DATA.suppliers;
-    _lastCloudTs = incomingTs;
-
-    try{
-      const j = JSON.stringify(normalized);
-      localStorage.setItem(STORAGE_KEY,        j);
-      localStorage.setItem(STORAGE_BACKUP_KEY, j);
-      localStorage.setItem('agromin_cloud_ts', incomingTs);
-    } catch(e){}
-
-    initialRecalc();
-    buildNav();
-    buildTopbar();
-    render();
-  } catch(e){ /* silencioso */ }
-}
-
-/* ---- Indicador discreto ---- */
-function setSyncStatus(state){
-  const el = document.getElementById('syncIndicator');
-  if (!el) return;
-  el.textContent = '';  /* siempre vacío — sin indicadores visibles */
-}
-
-/* ---- Sistema de sincronización ---- */
-let _realtimeChannel = null;
-let _pollInterval    = null;
-/* Inicializar desde localStorage para que el primer poll no sobreescriba datos locales */
-let _lastCloudTs     = localStorage.getItem('agromin_cloud_ts') || null;
-
-/* Comprueba si hay UI sensible abierta (menú desplegable, modal) */
-function _uiIsBusy(){
-  const modal = document.getElementById('modalOverlay');
-  if (modal && modal.classList.contains('open')) return true;
-  const menu = document.querySelector('.user-menu-content.open');
-  if (menu) return true;
-  return false;
-}
-
-/* Aplica datos de la nube de forma segura:
-   - Actualiza DATA/SUPPLIERS siempre (en memoria y localStorage)
-   - Re-renderiza SOLO si no hay menú/modal abierto Y no hay save pendiente */
-function applyCloudPayload(rawData, cloudTs){
-  try{
-    if (!rawData) return false;
-    const normalized = cleanupLoadedSuppliers(normalizeData(rawData));
-    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return false;
-
-    /* No aplicar nunca si tenemos un save en vuelo — nuestros datos son más nuevos */
-    if (_isSavingToCloud) return false;
-
-    DATA      = normalized;
-    SUPPLIERS = DATA.suppliers;
-
-    try{
-      const j = JSON.stringify(normalized);
-      localStorage.setItem(STORAGE_KEY,        j);
-      localStorage.setItem(STORAGE_BACKUP_KEY, j);
-      localStorage.setItem('agromin_cloud_ts', cloudTs);
-    } catch(e){}
-
-    _lastCloudTs = cloudTs;
-
-    /* No interrumpir si el usuario tiene algo abierto */
-    if (_uiIsBusy()) return true;
-
-    /* Re-renderizar solo el contenido, sin re-crear charts si no es necesario */
-    initialRecalc();
-    buildNav();
-    buildTopbar();
-    render();
-    return true;
-  } catch(e){ return false; }
-}
-
-async function pollOnce(){
-  if (!isAuthenticated()) return;
-  if (_isSavingToCloud)   return;
-  try{
-    /* Solo traer updated_at primero — sin descargar el payload completo */
-    const { data: row, error } = await _supa
-      .from('agromin_state')
-      .select('updated_at')
-      .eq('id', CLOUD_ROW_ID)
-      .single();
-
-    if (error || !row) return;
-    /* Si el timestamp no cambió → no hacer absolutamente nada */
-    if (!row.updated_at || row.updated_at === _lastCloudTs) return;
-
-    /* Solo ahora traer los datos completos */
-    const { data: full, error: err2 } = await _supa
-      .from('agromin_state')
-      .select('data, updated_at')
-      .eq('id', CLOUD_ROW_ID)
-      .single();
-
-    if (err2 || !full) return;
-    /* Doble check: evitar race condition donde justo terminó un save propio */
-    if (_isSavingToCloud) return;
-
-    applyCloudPayload(full.data, full.updated_at);
-  } catch(e){ /* silencioso */ }
-}
-
-/* Polling cada 3 s */
-function startPolling(){
-  if (_pollInterval) return;
-  _pollInterval = setInterval(pollOnce, 3000);
-}
-
-function startRealtimeSync(){
-  startPolling();
-
-  /* Al volver a la pestaña: sync inmediato */
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') pollOnce();
-  });
-
-  /* Realtime WebSocket como canal adicional */
-  if (_realtimeChannel) return;
-  try{
-    _realtimeChannel = _supa
-      .channel('agromin_rt')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'agromin_state'
-      }, (payload) => {
-        try{
-          if (_isSavingToCloud) return;
-          const newTs = payload.new?.updated_at;
-          if (!newTs || newTs === _lastCloudTs) return;
-          applyCloudPayload(payload.new?.data, newTs);
-        } catch(e){}
-      })
-      .subscribe();
-  } catch(e){ /* silencioso */ }
+  } catch(e) {}
+  // Sincronizar con la nube de forma asíncrona
+  showSyncIndicator('saving');
+  saveToCloud().then(() => showSyncIndicator('ok')).catch(() => showSyncIndicator('error'));
 }
 function showToast(icon, title, text=''){
   Swal.fire({
@@ -5966,7 +5799,6 @@ function destroyCharts(){
 function buildNav(){
   const nav = document.getElementById('nav');
   const stockBajoTotal = SUPPLIERS.reduce((a,s)=>a+stockBajoCount(s),0);
-  const currentRole = getAuthRole();
   const generalItems = [
     {id:'dashboard', label:'Dashboard general', icon:'▣'},
     {id:'ventas', label:'Ventas', icon:'↗'},
@@ -5977,7 +5809,6 @@ function buildNav(){
   ];
   let html = '<div class="nav-section"><div class="nav-label">General</div>';
   generalItems.forEach(it => {
-    if (currentRole === 'limited' && (it.id === 'precios' || it.id === 'new-supplier')) return;
     html += navItemHTML(it.id, it.label, it.tag);
   });
   html += '</div>';
@@ -6039,7 +5870,6 @@ function buildTopbar(){
           <div class="user-menu-content" id="userMenuContent">
             <button class="menu-item" id="importBackupBtn">⬆ Importar respaldo</button>
             <button class="menu-item" id="exportBackupBtn">⬇ Exportar respaldo</button>
-            <button class="menu-item" id="forceSyncBtn">☁ Forzar sync a nube</button>
             <div class="menu-divider"></div>
             <button class="menu-item logout-item" id="logoutBtn">🚪 Salir</button>
           </div>
@@ -6066,38 +5896,13 @@ function buildTopbar(){
 
       // Menu items
       if (logoutBtn){
-        logoutBtn.addEventListener('click', () => {
+        logoutBtn.addEventListener('click', async () => {
           menuContent.classList.remove('open');
           clearAuth();
+          _sbSession = null;
+          try { await _supabase.auth.signOut(); } catch(e){}
           window.location.hash = 'login';
           render();
-        });
-      }
-
-      const forceSyncBtn = document.getElementById('forceSyncBtn');
-      if (forceSyncBtn){
-        forceSyncBtn.addEventListener('click', async () => {
-          menuContent.classList.remove('open');
-          forceSyncBtn.disabled = true;
-          forceSyncBtn.textContent = '⏳ Subiendo...';
-          try{
-            const ts = new Date().toISOString();
-            const { error } = await _supa.from('agromin_state').upsert(
-              { id: CLOUD_ROW_ID, data: DATA, updated_at: ts },
-              { onConflict: 'id' }
-            );
-            if (error){
-              showToast('error', '⚠ Error', error.message);
-            } else {
-              _lastCloudTs = ts;
-              localStorage.setItem('agromin_cloud_ts', ts);
-              showToast('success', '☁ Sincronizado', 'Datos subidos a la nube correctamente.');
-            }
-          } catch(e){
-            showToast('error', '⚠ Error', 'No se pudo conectar con Supabase.');
-          }
-          forceSyncBtn.disabled = false;
-          forceSyncBtn.textContent = '☁ Forzar sync a nube';
         });
       }
       if (exportBtn){
@@ -6249,15 +6054,6 @@ function render(){
   document.getElementById('sidebar').style.display = 'block';
   document.getElementById('topbar').style.display = 'flex';
 
-  const currentRole = getAuthRole();
-  const restrictedRoutes = ['precios', 'new-supplier'];
-  const restrictedPrefixes = ['sup-lotes:', 'sup-inactivos:'];
-  if (currentRole === 'limited' && (restrictedRoutes.includes(route) || restrictedPrefixes.some(prefix => route.startsWith(prefix)))){
-    route = 'dashboard';
-    window.location.hash = 'dashboard';
-    showToast('info', 'Acceso restringido', 'No tienes permiso para acceder a esa sección.');
-  }
-
   if (route.startsWith('search:')){
     destroyCharts();
     setActiveNav('__none__');
@@ -6304,6 +6100,7 @@ function render(){
     const idx = parseInt(route.split(':')[1], 10);
     content.innerHTML = viewSupplier(SUPPLIERS[idx], idx);
     attachSupplierBehavior(idx);
+    attachSupplierCharts(SUPPLIERS[idx]);
     attachGastosPanel(SUPPLIERS[idx]);
     return;
   } else {
@@ -6343,19 +6140,59 @@ function attachLoginBehavior(){
   const userInput = document.getElementById('loginUser');
   const passInput = document.getElementById('loginPass');
   if (!loginBtn || !userInput || !passInput) return;
-  const tryLogin = () => {
+
+  const tryLogin = async () => {
     const enteredUser = userInput.value.trim();
     const userKey = findUserKey(enteredUser);
     const pass = passInput.value.trim();
-    if (userKey && pass === USERS[userKey].password){
+
+    if (!userKey || !pass){
+      Swal.fire({ title: 'Acceso denegado', text: 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
+      return;
+    }
+
+    const email = USER_EMAIL_MAP[userKey];
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Ingresando…';
+
+    try {
+      // Autenticar con Supabase
+      const { data, error } = await _supabase.auth.signInWithPassword({ email, password: pass });
+
+      if (error || !data?.session){
+        // Fallback offline: credencial local de AGROMIN
+        const FALLBACK = { AGROMIN: '123' };
+        if (FALLBACK[userKey] === pass){
+          localStorage.setItem(AUTH_KEY, userKey);
+          localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
+          window.location.hash = 'dashboard';
+          buildNav(); buildTopbar(); render();
+          showToast('warning', 'Modo offline', 'Sin conexión a la nube. Los cambios se sincronizarán al reconectarte.');
+        } else {
+          Swal.fire({ title: 'Acceso denegado', text: error?.message || 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
+        }
+        return;
+      }
+
+      // Login exitoso con Supabase — onAuthStateChange maneja el resto
+      _sbSession = data.session;
       localStorage.setItem(AUTH_KEY, userKey);
       localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
+
+      // Cargar datos desde la nube
+      showToast('info', 'Cargando datos…', 'Sincronizando con la nube.');
+      await loadFromCloud();
       window.location.hash = 'dashboard';
       buildNav(); buildTopbar(); render();
-    } else {
-      Swal.fire({ title: 'Acceso denegado', text: 'Usuario o contraseña incorrectos.', icon: 'error', customClass: { popup: 'agromin-swal' } });
+
+    } catch(e){
+      Swal.fire({ title: 'Error de conexión', text: 'No se pudo conectar con el servidor.', icon: 'error', customClass: { popup: 'agromin-swal' } });
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Ingresar';
     }
   };
+
   loginBtn.addEventListener('click', tryLogin);
   userInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
   passInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
@@ -6464,7 +6301,6 @@ function viewDashboard(){
 }
 
 function viewVentas(){
-  const isAdmin = !isLimitedUser();
   const salesProducts = [];
   SUPPLIERS.forEach((s, idx) => {
     s.products.forEach(p => {
@@ -6474,7 +6310,6 @@ function viewVentas(){
   });
   salesProducts.sort((a, b) => b.total - a.total || b.velocity - a.velocity);
 
-  const colCount = isAdmin ? 9 : 8;
   const rows = salesProducts.map((entry, i) => `
     <tr>
       <td class="num">${i + 1}</td>
@@ -6485,7 +6320,6 @@ function viewVentas(){
       <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
       <td class="num">${fmtN(entry.product.stock, 0)}</td>
       <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
-      ${isAdmin ? `<td class="actions-cell"><button class="icon-btn detail-btn venta-historial-btn" data-uid="${esc(entry.product._uid)}" data-sidx="${entry.supplierIdx}" title="Ver historial de ventas">📋</button></td>` : ''}
     </tr>
   `).join('');
 
@@ -6526,16 +6360,15 @@ function viewVentas(){
         </div>
         <div class="filter-group">
           <label>Acción</label>
-          <button class="btn-primary" id="downloadVentasExcelBtn" style="min-width: auto;">⬇ Descargar Excel</button>
+          <button class="btn-primary" id="downloadVentasExcelBtn" style="min-width: auto;">Descargar Excel</button>
         </div>
       </div>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
             <th>#</th><th>Producto</th><th>Proveedor</th><th class="num">Vendidas</th><th class="num">Últ. 7 días</th><th class="num">Rotación</th><th class="num">Stock</th><th>Última venta</th>
-            ${isAdmin ? '<th>Historial</th>' : ''}
           </tr></thead>
-          <tbody id="ventasTableBody">${rows || `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`}</tbody>
+          <tbody id="ventasTableBody">${rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>'}</tbody>
         </table>
       </div>
       <div class="pagination-footer">
@@ -6557,113 +6390,6 @@ function viewVentas(){
   `;
 }
 
-/* Abre modal con el historial completo de ventas de un producto (solo admin) */
-function openVentasHistorialModal(supplierIdx, productUid, onClosed){
-  const s = SUPPLIERS[supplierIdx];
-  if (!s) return;
-  const p = s.products.find(x => x._uid === productUid);
-  if (!p) return;
-
-  function buildRows(){
-    const ventas = (p.ventas || []).slice().reverse(); // más reciente primero
-    if (!ventas.length) return `<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:16px;">Sin ventas registradas.</td></tr>`;
-    return ventas.map(v => `
-      <tr data-sale-id="${esc(v.id || '')}">
-        <td>${esc(v.fecha ? v.fecha.slice(0,10) : '—')}</td>
-        <td>${esc(v.fecha ? v.fecha.slice(11,16) : '—')}</td>
-        <td class="num">${fmtInt(v.cantidad)}</td>
-        <td>${esc(v.nota || '—')}</td>
-        <td class="actions-cell">
-          <button class="icon-btn delete-btn del-venta-btn" data-sale-id="${esc(v.id || '')}" data-qty="${Number(v.cantidad)||0}" title="Eliminar venta y devolver stock">🗑</button>
-        </td>
-      </tr>
-    `).join('');
-  }
-
-  function renderModal(){
-    const totalVendido = getSalesTotal(p);
-    openModal(`
-      <div class="modal-eyebrow">Historial · ${esc(s.name)}</div>
-      <div class="modal-title">${esc(p.producto)}</div>
-      <div class="modal-sub">
-        Stock actual: <strong>${fmtInt(p.stock)}</strong> u &nbsp;·&nbsp;
-        Total vendido: <strong>${fmtInt(totalVendido)}</strong> u
-      </div>
-      <div class="table-scroll" style="max-height:340px;overflow-y:auto;">
-        <table class="data-table">
-          <thead><tr>
-            <th>Fecha</th><th>Hora</th><th class="num">Unidades</th><th>Nota</th><th>Eliminar</th>
-          </tr></thead>
-          <tbody id="ventasHistorialBody">${buildRows()}</tbody>
-        </table>
-      </div>
-      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-        <button class="btn-secondary" id="ventasHistorialCloseBtn">Cerrar</button>
-      </div>
-    `);
-
-    document.getElementById('ventasHistorialCloseBtn').addEventListener('click', () => {
-      closeModal();
-      if (typeof onClosed === 'function') onClosed();
-    });
-
-    /* Delegar clicks en botones de eliminar */
-    document.getElementById('ventasHistorialBody').addEventListener('click', (e) => {
-      const btn = e.target.closest('.del-venta-btn');
-      if (!btn) return;
-      const saleId  = btn.dataset.saleId;
-      const saleQty = Number(btn.dataset.qty) || 0;
-
-      Swal.fire({
-        title: '¿Eliminar esta venta?',
-        html: `Se devolverán <strong>${fmtInt(saleQty)}</strong> unidad(es) al stock de <em>${esc(p.producto)}</em>.<br><small style="color:var(--text-faint)">Esta acción no se puede deshacer.</small>`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#ab3a2c',
-        customClass: { popup: 'agromin-swal' }
-      }).then(result => {
-        if (!result.isConfirmed) return;
-
-        /* Buscar y eliminar la venta del array */
-        const idx = p.ventas.findIndex(v => v.id === saleId);
-        if (idx === -1){
-          showToast('error', 'No encontrada', 'No se pudo ubicar la venta en el historial.');
-          return;
-        }
-        p.ventas.splice(idx, 1);
-
-        /* Devolver unidades al stock */
-        p.stock = (Number(p.stock) || 0) + saleQty;
-
-        /* Recalcular totales del producto */
-        p.ventasTotal = getSalesTotal(p);
-        p.ultimaVenta = p.ventas.length ? p.ventas[p.ventas.length - 1].fecha : null;
-
-        /* Recalcular proveedor y guardar */
-        recalcSingleProduct(s, p);
-        recalcSupplierMeta(s);
-        saveState();
-        buildNav();
-        buildTopbar();
-
-        showToast('success', 'Venta eliminada', `+${fmtInt(saleQty)} u devueltas al stock.`);
-
-        /* Refrescar el body del modal sin cerrarlo */
-        const body = document.getElementById('ventasHistorialBody');
-        if (body) body.innerHTML = buildRows();
-
-        /* Actualizar subtitle del modal */
-        const sub = document.querySelector('#modalCard .modal-sub');
-        if (sub) sub.innerHTML = `Stock actual: <strong>${fmtInt(p.stock)}</strong> u &nbsp;·&nbsp; Total vendido: <strong>${fmtInt(getSalesTotal(p))}</strong> u`;
-      });
-    });
-  }
-
-  renderModal();
-}
-
 function attachVentasBehavior(){
   const downloadBtn = document.getElementById('downloadVentasExcelBtn');
   const supplierFilter = document.getElementById('ventasSupplierFilter');
@@ -6675,8 +6401,6 @@ function attachVentasBehavior(){
   const pageSizeSelect = document.getElementById('ventasPageSize');
   if (!downloadBtn || !tableBody || !supplierFilter || !prevBtn || !nextBtn || !pageNumber || !totalPagesEl || !pageSizeSelect) return;
 
-  const isAdmin = !isLimitedUser();
-  const colCount = isAdmin ? 9 : 8;
   let currentPage = 1;
   let pageSize = parseInt(pageSizeSelect.value, 10) || 15;
   let currentSupplier = 'all';
@@ -6713,26 +6437,14 @@ function attachVentasBehavior(){
         <td class="num">${fmtN(entry.velocity, 1)} u/día</td>
         <td class="num">${fmtN(entry.product.stock, 0)}</td>
         <td>${esc(entry.product.ultimaVenta ? entry.product.ultimaVenta.slice(0, 10) : '—')}</td>
-        ${isAdmin ? `<td class="actions-cell"><button class="icon-btn detail-btn venta-historial-btn" data-uid="${esc(entry.product._uid)}" data-sidx="${entry.supplierIdx}" title="Ver y eliminar ventas">📋</button></td>` : ''}
       </tr>
-    `).join('') || `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
+    `).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:20px;">Aún no hay ventas registradas.</td></tr>`;
 
     pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
     totalPagesEl.textContent = totalItems === 0 ? '0' : totalPages;
     prevBtn.disabled = currentPage <= 1;
     nextBtn.disabled = currentPage >= totalPages;
   }
-
-  /* Delegar click en botones de historial */
-  tableBody.addEventListener('click', (e) => {
-    const btn = e.target.closest('.venta-historial-btn');
-    if (!btn) return;
-    const supplierIdx = parseInt(btn.dataset.sidx, 10);
-    const uid = btn.dataset.uid;
-    openVentasHistorialModal(supplierIdx, uid, () => {
-      renderSalesTable();
-    });
-  });
 
   function exportVentas(){
     const salesProducts = buildSalesProducts();
@@ -6804,9 +6516,6 @@ function attachDashboardCharts(){
       }]
     },
     options: {
-      animation: false,
-      animations: false,
-      transitions: {},
       indexAxis: 'y',
       plugins: { legend: {display:false},
         tooltip: { callbacks: { label: (c) => fmtS(c.parsed.x) } } },
@@ -6837,9 +6546,6 @@ function attachDashboardCharts(){
       }]
     },
     options: {
-      animation: false,
-      animations: false,
-      transitions: {},
       plugins: { legend: { position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } },
       cutout: '62%'
     }
@@ -7163,9 +6869,6 @@ function attachStockBajoChart(){
       datasets:[{ data: ranked.map(r=>r.count), backgroundColor:'rgba(184,118,30,0.5)', borderColor:'#b8761e', borderWidth:1, borderRadius:3 }]
     },
     options:{
-      animation: false,
-      animations: false,
-      transitions: {},
       indexAxis:'y',
       plugins:{ legend:{display:false} },
       scales:{
@@ -7434,13 +7137,8 @@ const ICON_DELETE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none"
 const ICON_LOTS = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><path d="M3 10v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10"/><path d="M12 4v6"/></svg>`;
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>`;
 
-function cellHTML(col, val, pi, restricted = false){
+function cellHTML(col, val, pi){
   if (col.type === 'actions'){
-    if (restricted){
-      return `<td class="actions-cell">
-        <button class="icon-btn detail-btn" data-pi="${pi}" title="Ver detalles" aria-label="Ver detalles">${ICON_EYE}</button>
-      </td>`;
-    }
     return `<td class="actions-cell">
       <button class="icon-btn detail-btn" data-pi="${pi}" title="Ver detalles" aria-label="Ver detalles">${ICON_EYE}</button>
       <button class="icon-btn edit-btn" data-pi="${pi}" title="Editar producto" aria-label="Editar producto">${ICON_EDIT}</button>
@@ -7475,9 +7173,7 @@ function viewSupplier(s, idx){
   const bajo = stockBajoCount(s);
   const optimo = s.products.length - bajo;
   const inactiveCount = (s.inactiveProducts || []).length;
-  const restricted = isLimitedUser();
-
-  const rows = s.products.map((p,pi) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi, restricted)).join('')}</tr>`).join('');
+  const rows = s.products.map((p,pi) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('');
 
   const inactiveRows = (s.inactiveProducts || []).map((p,pi) => `
     <tr>
@@ -7495,7 +7191,7 @@ function viewSupplier(s, idx){
       <div class="eyebrow">Proveedor · <span class="badge-schema">esquema ${s.schema}</span></div>
       <div class="view-title">${esc(s.name)}</div>
       <div class="view-desc">Reporte generado el ${ (s.meta.fechaReporte||'').slice(0,10) || '—' }. Tipo de cambio comercial ${fmtN(s.meta.tcComercial,2)} · SUNAT ${fmtN(s.meta.tcSunat,2)}.</div>
-      ${restricted ? '' : '<button class="btn-secondary" id="editSupplierSchemaBtn">Editar esquema</button>'}
+      <button class="btn-secondary" id="editSupplierSchemaBtn">Editar esquema</button>
     </div>
 
     <div class="kpi-grid">
@@ -7519,6 +7215,17 @@ function viewSupplier(s, idx){
       </div>
     </div>
 
+    <div class="chart-row">
+      <div class="panel">
+        <div class="panel-title">Top 8 productos por monto bruto <span class="hint">S/.</span></div>
+        <div class="chart-wrap small"><canvas id="chartSupTop"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Estado del inventario</div>
+        <div class="chart-wrap small"><canvas id="chartSupStock"></canvas></div>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-title">Catálogo de productos <span class="hint">${s.products.length} registros</span></div>
       <div class="table-toolbar">
@@ -7532,8 +7239,8 @@ function viewSupplier(s, idx){
             <span>⌕</span>
             <input id="supSearch" placeholder="Filtrar producto…" />
           </div>
-          ${restricted ? '' : `<button class="btn-secondary" id="viewInactiveBtn">Ver inactivos (${inactiveCount})</button>`}
-          ${restricted ? '' : '<button class="btn-primary" id="addProductBtn">+ Agregar producto</button>'}
+          <button class="btn-secondary" id="viewInactiveBtn">Ver inactivos (${inactiveCount})</button>
+          <button class="btn-primary" id="addProductBtn">+ Agregar producto</button>
         </div>
       </div>
       <div class="table-scroll">
@@ -7572,6 +7279,49 @@ function viewSupplier(s, idx){
       <button class="btn-add-gasto" id="addGastoBtn">+ Agregar gasto</button>
     </div>
   `;
+}
+
+function attachSupplierCharts(s){
+  const moneyKey = s.schema === 'SOLES' ? 'montoBrutoSoles' : 'montoBrutoSoles';
+  const top = [...s.products]
+    .sort((a,b)=>(b[moneyKey]||0)-(a[moneyKey]||0))
+    .slice(0,8);
+  const ctxTop = document.getElementById('chartSupTop');
+  if (ctxTop){
+    chartInstances.supTop = new Chart(ctxTop, {
+      type:'bar',
+      data:{
+        labels: top.map(p => (p.producto||'').length > 22 ? p.producto.slice(0,20)+'…' : p.producto),
+        datasets:[{ data: top.map(p=>p[moneyKey]||0), backgroundColor:'rgba(39,110,110,0.45)', borderColor:'#276e6e', borderWidth:1, borderRadius:3 }]
+      },
+      options:{
+        indexAxis:'y',
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>fmtS(c.parsed.x) } } },
+        scales:{
+          x:{ ticks:{color:'#56695a', font:{family:'IBM Plex Mono', size:10}}, grid:{color:'rgba(28,42,31,0.08)'} },
+          y:{ ticks:{color:'#1c2a1f', font:{family:'IBM Plex Mono', size:10}}, grid:{display:false} }
+        }
+      }
+    });
+  }
+  let optimo=0, bajo=0, otro=0;
+  s.products.forEach(p => {
+    const e = (p.estadoStock||'').toUpperCase();
+    if (e.includes('BAJO')) bajo++;
+    else if (e.includes('OPTIM') || e.includes('ÓPTIM')) optimo++;
+    else otro++;
+  });
+  const ctxStock = document.getElementById('chartSupStock');
+  if (ctxStock){
+    chartInstances.supStock = new Chart(ctxStock, {
+      type:'doughnut',
+      data:{
+        labels:['Óptimo','Stock bajo','Otro / S.P.'],
+        datasets:[{ data:[optimo,bajo,otro], backgroundColor:['#3c7a2e','#b8761e','#276e6e'], borderColor:'#ffffff', borderWidth:3 }]
+      },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ color:'#1c2a1f', font:{family:'IBM Plex Mono', size:11} } } }, cutout:'62%' }
+    });
+  }
 }
 
 /* ---------------------------- MODAL (ver detalles / editar producto) ---------------------------- */
@@ -8381,8 +8131,7 @@ function attachSupplierBehavior(idx){
     const start = (currentPage - 1) * pageSize;
     const pagedItems = items.slice(start, start + pageSize);
 
-    const restricted = isLimitedUser();
-    tbody.innerHTML = pagedItems.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi, restricted)).join('')}</tr>`).join('')
+    tbody.innerHTML = pagedItems.map(({p,pi}) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('')
       || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-faint);padding:20px;">Sin resultados</td></tr>`;
 
     if (pageNumber) pageNumber.textContent = totalItems === 0 ? '0' : currentPage;
@@ -8438,8 +8187,7 @@ function attachSupplierBehavior(idx){
     });
   });
 
-  const restricted = isLimitedUser();
-  if (!restricted && editSchemaBtn){
+  if (editSchemaBtn){
     editSchemaBtn.addEventListener('click', () => {
       openSupplierSchemaModal(s, idx, () => {
         buildNav(); buildTopbar(); render();
@@ -8447,13 +8195,13 @@ function attachSupplierBehavior(idx){
     });
   }
 
-  if (!restricted && viewInactiveBtn) {
+  if (viewInactiveBtn) {
     viewInactiveBtn.addEventListener('click', () => {
       window.location.hash = `sup-inactivos:${idx}`;
     });
   }
 
-  if (!restricted && addProductBtn) {
+  if (addProductBtn) {
     addProductBtn.addEventListener('click', () => {
       openAddProductModal(s, idx, () => {
         buildNav(); buildTopbar(); render();
@@ -8470,13 +8218,9 @@ function attachSupplierBehavior(idx){
     const deleteBtn = e.target.closest('.delete-btn');
     const restoreBtn = e.target.closest('.restore-btn');
 
-    const restricted = isLimitedUser();
     if (detailBtn){
       const pi = parseInt(detailBtn.dataset.pi, 10);
       openProductDetailModal(s, pi);
-    } else if (restricted && (editBtn || lotBtn || deleteBtn)){
-      showToast('warning', 'Acceso restringido', 'No tienes permiso para esta acción.');
-      return;
     } else if (editBtn){
       const pi = parseInt(editBtn.dataset.pi, 10);
       openProductEditModal(s, idx, pi, applyAndRender);
@@ -8585,45 +8329,21 @@ document.getElementById('menuBtn').addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open');
 });
 
-/* ---------------------------- ORIENTATION FIX ---------------------------- */
-(function(){
-  let _orientTimer = null;
-  let _lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-
-  function onOrientationChange(){
-    const nowOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-    /* Solo actuar si realmente cambió la orientación, no por cualquier resize */
-    if (nowOrientation === _lastOrientation) return;
-    _lastOrientation = nowOrientation;
-
-    document.getElementById('sidebar').classList.remove('open');
-
-    clearTimeout(_orientTimer);
-    _orientTimer = setTimeout(() => {
-      destroyCharts();
-      render();
-    }, 350);
-  }
-
-  if (screen.orientation){
-    screen.orientation.addEventListener('change', onOrientationChange);
-  }
-  window.addEventListener('orientationchange', onOrientationChange);
-  window.addEventListener('resize', onOrientationChange);
-})();
-
 /* ---------------------------- INIT ---------------------------- */
 initialRecalc();
 buildNav();
 buildTopbar();
 setupAuthActivityWatcher();
-render();
 
-/* Carga datos de la nube en segundo plano y actualiza la UI */
-loadCloudData();
-
-/* Escucha cambios en tiempo real para sincronizar entre dispositivos/usuarios */
-startRealtimeSync();
+// Inicializar Supabase y luego renderizar
+(async () => {
+  await initSupabaseAuth();
+  // Si hay sesión activa, intentar cargar datos frescos de la nube
+  if (_sbSession) {
+    await loadFromCloud();
+  }
+  render();
+})();
 
 </script>
 </body>
