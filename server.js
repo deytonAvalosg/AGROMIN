@@ -8,11 +8,13 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGODB_URI = process.env.MONGODB_URI;
+const MONGO_DIRECT_URI = process.env.MONGO_DIRECT_URI;
 const DB_NAME = process.env.DB_NAME || 'agromin';
 const COLLECTION_NAME = process.env.COLLECTION_NAME || 'states';
+const MONGO_URI = MONGO_DIRECT_URI || MONGODB_URI;
 
-if (!MONGODB_URI) {
-  console.error('ERROR: MONGODB_URI is not configured. Copy .env.example to .env and set your MongoDB Atlas connection string.');
+if (!MONGO_URI) {
+  console.error('ERROR: MONGODB_URI or MONGO_DIRECT_URI is not configured. Copy .env.example to .env and set your MongoDB Atlas connection string.');
   process.exit(1);
 }
 
@@ -21,7 +23,7 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname)));
 
-const client = new MongoClient(MONGODB_URI, {
+const client = new MongoClient(MONGO_URI, {
   serverApi: {
     version: '1',
     strict: true,
