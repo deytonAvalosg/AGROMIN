@@ -5398,77 +5398,12 @@ async function initSupabaseAuth(){
       // Recargar datos desde nube al iniciar sesión
       await loadFromCloud();
       buildNav(); buildTopbar(); render();
-      // Activar sincronización en tiempo real
-      startRealtimeSync();
     } else if (event === 'SIGNED_OUT') {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_LAST_ACTIVITY);
-      stopRealtimeSync();
       buildNav(); buildTopbar(); render();
     }
   });
-}
-
-// ---- REALTIME SYNC + POLLING FALLBACK ----
-let _realtimeChannel = null;
-let _lastSavedAt = null;     // timestamp del último guardado propio (para no recargar innecesariamente)
-let _lastKnownRemoteTs = null; // último updated_at conocido del servidor
-let _pollInterval = null;
-
-async function checkAndApplyRemoteChanges(){
-  if (!_sbSession) return;
-  try {
-    const { data, error } = await _supabase
-      .from(CLOUD_TABLE)
-      .select('updated_at')
-      .eq('id', CLOUD_ROW_ID)
-      .maybeSingle();
-    if (error || !data) return;
-    const remoteTs = data.updated_at;
-    // Si el servidor tiene un timestamp más nuevo que lo que guardamos nosotros y distinto al último conocido
-    if (remoteTs && remoteTs !== _lastSavedAt && remoteTs !== _lastKnownRemoteTs) {
-      _lastKnownRemoteTs = remoteTs;
-      const loaded = await loadFromCloud();
-      if (loaded) render();
-    }
-  } catch(e) {}
-}
-
-function startRealtimeSync(){
-  // 1. Realtime via WebSocket (instantáneo si está habilitado en Supabase)
-  if (!_realtimeChannel) {
-    _realtimeChannel = _supabase
-      .channel('agromin_state_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: CLOUD_TABLE, filter: `id=eq.${CLOUD_ROW_ID}` },
-        async (payload) => {
-          const remoteTs = payload?.new?.updated_at;
-          if (remoteTs && remoteTs !== _lastSavedAt) {
-            _lastKnownRemoteTs = remoteTs;
-            const loaded = await loadFromCloud();
-            if (loaded) render();
-          }
-        }
-      )
-      .subscribe();
-  }
-
-  // 2. Polling cada 10 segundos como respaldo (funciona siempre)
-  if (!_pollInterval) {
-    _pollInterval = setInterval(checkAndApplyRemoteChanges, 10000);
-  }
-}
-
-function stopRealtimeSync(){
-  if (_realtimeChannel) {
-    _supabase.removeChannel(_realtimeChannel);
-    _realtimeChannel = null;
-  }
-  if (_pollInterval) {
-    clearInterval(_pollInterval);
-    _pollInterval = null;
-  }
 }
 
 function getUserKeyFromEmail(email){
@@ -5539,11 +5474,9 @@ async function saveToCloud(){
   if (!_sbSession) return; // Solo sincronizar si hay sesión activa
   try {
     const payload = JSON.stringify(DATA);
-    const ts = new Date().toISOString();
-    _lastSavedAt = ts; // marcar para ignorar el propio cambio en realtime
     const { error } = await _supabase
       .from(CLOUD_TABLE)
-      .upsert({ id: CLOUD_ROW_ID, payload, updated_at: ts }, { onConflict: 'id' });
+      .upsert({ id: CLOUD_ROW_ID, payload, updated_at: new Date().toISOString() }, { onConflict: 'id' });
     if (error) console.warn('Cloud save error:', error.message);
   } catch(e){ console.warn('Cloud save exception:', e); }
 }
@@ -8478,7 +8411,6 @@ setupAuthActivityWatcher();
   // Si hay sesión activa, intentar cargar datos frescos de la nube
   if (_sbSession) {
     await loadFromCloud();
-    startRealtimeSync();
   }
   render();
 })();
