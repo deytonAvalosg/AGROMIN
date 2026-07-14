@@ -7,17 +7,26 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const PORT = Number(process.env.PORT || 3000);
-const MONGODB_URI = process.env.MONGODB_URI;
-const MONGO_DIRECT_URI = process.env.MONGO_DIRECT_URI;
+const envCandidates = {
+  MONGODB_URI: process.env.MONGODB_URI,
+  MONGO_DIRECT_URI: process.env.MONGO_DIRECT_URI,
+  DATABASE_URL: process.env.DATABASE_URL,
+  MONGO_URL: process.env.MONGO_URL,
+  MONGODB_URL: process.env.MONGODB_URL,
+  ATLAS_URI: process.env.ATLAS_URI,
+  RAILWAY_MONGODB_URI: process.env.RAILWAY_MONGODB_URI,
+};
+const MONGO_URI = envCandidates.MONGO_DIRECT_URI || envCandidates.MONGODB_URI || envCandidates.DATABASE_URL || envCandidates.MONGO_URL || envCandidates.MONGODB_URL || envCandidates.ATLAS_URI || envCandidates.RAILWAY_MONGODB_URI;
 const DB_NAME = process.env.DB_NAME || 'agromin';
 const COLLECTION_NAME = process.env.COLLECTION_NAME || 'states';
-const MONGO_URI = MONGO_DIRECT_URI || MONGODB_URI;
 
 if (!MONGO_URI) {
-  console.error('ERROR: MONGODB_URI or MONGO_DIRECT_URI is not configured. Copy .env.example to .env and set your MongoDB Atlas connection string.');
+  console.error('ERROR: MongoDB connection string is not configured. Set one of the supported env vars.');
+  console.error('Supported keys:', Object.keys(envCandidates).join(', '));
   console.error('Loaded env path:', path.join(__dirname, '.env'));
-  console.error('MONGODB_URI:', process.env.MONGODB_URI ? '[SET]' : '[UNDEFINED]');
-  console.error('MONGO_DIRECT_URI:', process.env.MONGO_DIRECT_URI ? '[SET]' : '[UNDEFINED]');
+  Object.entries(envCandidates).forEach(([key, value]) => {
+    console.error(`${key}:`, value ? '[SET]' : '[UNDEFINED]');
+  });
   process.exit(1);
 }
 
