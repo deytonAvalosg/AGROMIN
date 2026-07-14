@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -228,6 +229,40 @@ a{ color: inherit; }
   display:flex; align-items:center; justify-content:space-between;
 }
 .panel-title .hint{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); font-weight:400; }
+
+.catalog-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(120px,1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.catalog-card{
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 18px 16px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+.catalog-count{
+  font-family: var(--display);
+  font-size: 32px;
+  font-weight:700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.catalog-label{
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.catalog-card.optimo{ background: rgba(60,122,46,0.12); border-color: rgba(60,122,46,0.18); }
+.catalog-card.optimo .catalog-count{ color: var(--lime); }
+.catalog-card.stockbajo{ background: rgba(171,58,44,0.12); border-color: rgba(171,58,44,0.18); }
+.catalog-card.stockbajo .catalog-count{ color: var(--rust); }
 
 .chart-row{ display:grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
 @media (max-width: 980px){ .chart-row{ grid-template-columns: 1fr; } }
@@ -5355,7 +5390,7 @@ const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyAbq4IrgvjuQVZgmcyieOPrTomP_kTpar4',
   authDomain: 'basededatos-88a57.firebaseapp.com',
   projectId: 'basededatos-88a57',
-  storageBucket: 'basededatos-88a57.appspot.com',
+  storageBucket: 'basededatos-88a57.firebasestorage.app',
   messagingSenderId: '94353855766',
   appId: '1:94353855766:web:6efa2a9ecafe7cd05b6c37',
   measurementId: 'G-KG8PRK3ZNP'
@@ -5364,6 +5399,7 @@ let FIREBASE_ENABLED = true;
 const FIRESTORE_COLLECTION = 'agromin_states';
 let FIREBASE_INITIALIZED = false;
 let FIREBASE_DB = null;
+let FIREBASE_AUTH = null;
 const USERS = {
   AGROMIN: { password: '123', role: 'admin' },
   SOLUCIONES: { password: '123', role: 'limited' }
@@ -5483,18 +5519,42 @@ function loadPersistedData(){
 function initFirebase(){
   if (!FIREBASE_ENABLED || FIREBASE_INITIALIZED) return;
   try{
-    firebase.initializeApp(FIREBASE_CONFIG);
+    if (!firebase.apps.length){
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
     FIREBASE_DB = firebase.firestore();
+    FIREBASE_AUTH = firebase.auth ? firebase.auth() : null;
     FIREBASE_INITIALIZED = true;
     console.log('Firebase initialized successfully');
   } catch (e){
     FIREBASE_ENABLED = false;
     console.warn('Firebase init failed:', e);
+    showToast('error', 'Firebase init falló', e.message || 'No se pudo inicializar Firebase.');
+  }
+}
+
+async function ensureFirebaseAuth(){
+  if (!FIREBASE_ENABLED) return false;
+  initFirebase();
+  if (!FIREBASE_AUTH) return true;
+  if (FIREBASE_AUTH.currentUser) return true;
+  try{
+    await FIREBASE_AUTH.signInAnonymously();
+    console.log('Firebase anonymous auth completed');
+    return true;
+  } catch (e){
+    console.warn('Firebase anonymous auth failed:', e);
+    showToast('error', 'Firebase auth falló', e.message || 'No se pudo autenticar con Firebase.');
+    return false;
   }
 }
 
 function getRemoteStateDoc(userKey){
-  if (!FIREBASE_INITIALIZED || !userKey) return null;
+  if (!userKey) return null;
+  if (!FIREBASE_INITIALIZED){
+    initFirebase();
+  }
+  if (!FIREBASE_INITIALIZED || !FIREBASE_DB) return null;
   return FIREBASE_DB.collection(FIRESTORE_COLLECTION).doc(userKey);
 }
 
@@ -5507,7 +5567,7 @@ async function loadRemoteState(userKey){
     console.warn('loadRemoteState skipped: missing userKey');
     return null;
   }
-  initFirebase();
+  if (!(await ensureFirebaseAuth())) return null;
   const doc = getRemoteStateDoc(userKey);
   if (!doc){
     console.warn('loadRemoteState skipped: no Firestore document handle');
@@ -5529,6 +5589,7 @@ async function loadRemoteState(userKey){
     return normalizeData(data.state);
   } catch (e){
     console.warn('Remote load failed:', e);
+    showToast('error', 'Error al cargar remoto', e.message || 'No se pudo obtener los datos de Firestore.');
     return null;
   }
 }
@@ -5542,7 +5603,7 @@ async function saveRemoteState(userKey){
     console.warn('saveRemoteState skipped: missing userKey');
     return;
   }
-  initFirebase();
+  if (!(await ensureFirebaseAuth())) return;
   const doc = getRemoteStateDoc(userKey);
   if (!doc){
     console.warn('saveRemoteState skipped: no Firestore document handle');
@@ -5557,6 +5618,7 @@ async function saveRemoteState(userKey){
     console.log('Remote state saved for user:', userKey);
   } catch (e){
     console.warn('Remote save failed:', e);
+    showToast('error', 'Error al guardar remoto', e.message || 'No se pudo guardar el estado en Firestore.');
   }
 }
 
@@ -5567,7 +5629,7 @@ function saveState(){
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
     const userKey = getAuthUser();
     if (userKey && !isSessionExpired()){
-      saveRemoteState(userKey);
+      void saveRemoteState(userKey);
     }
   } catch(e) {}
 }
@@ -6240,6 +6302,24 @@ function viewDashboard(){
         <div class="kpi-label">Productos en catálogo</div>
         <div class="kpi-value">${fmtInt(totalProductos)}</div>
         <div class="kpi-sub">${totalOptimo} óptimo · ${totalStockBajo} stock bajo</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Catálogo de productos</div>
+      <div class="catalog-grid">
+        <div class="catalog-card">
+          <span class="catalog-label">Todos</span>
+          <span class="catalog-count">${fmtInt(totalProductos)}</span>
+        </div>
+        <div class="catalog-card optimo">
+          <span class="catalog-label">Óptimo</span>
+          <span class="catalog-count">${fmtInt(totalOptimo)}</span>
+        </div>
+        <div class="catalog-card stockbajo">
+          <span class="catalog-label">Stock bajo</span>
+          <span class="catalog-count">${fmtInt(totalStockBajo)}</span>
+        </div>
       </div>
     </div>
 
