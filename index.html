@@ -5608,7 +5608,7 @@ async function loadCloudData(){
     /* Si el localStorage tiene un timestamp MÁS RECIENTE que la nube,
        no sobreescribir — nuestros datos locales son más nuevos */
     if (localTs && localTs >= incomingTs){
-      _lastCloudTs = localTs;
+      _lastCloudTs = incomingTs; /* marcar el ts de la nube para que el polling no lo re-aplique */
       return;
     }
 
@@ -5647,7 +5647,8 @@ function setSyncStatus(state){
 /* ---- Sistema de sincronización ---- */
 let _realtimeChannel = null;
 let _pollInterval    = null;
-let _lastCloudTs     = null;
+/* Inicializar desde localStorage para que el primer poll no sobreescriba datos locales */
+let _lastCloudTs     = localStorage.getItem('agromin_cloud_ts') || null;
 
 /* Comprueba si hay UI sensible abierta (menú desplegable, modal) */
 function _uiIsBusy(){
