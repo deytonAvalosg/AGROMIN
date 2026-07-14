@@ -4,7 +4,7 @@ const path = require('path');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -15,6 +15,9 @@ const MONGO_URI = MONGO_DIRECT_URI || MONGODB_URI;
 
 if (!MONGO_URI) {
   console.error('ERROR: MONGODB_URI or MONGO_DIRECT_URI is not configured. Copy .env.example to .env and set your MongoDB Atlas connection string.');
+  console.error('Loaded env path:', path.join(__dirname, '.env'));
+  console.error('MONGODB_URI:', process.env.MONGODB_URI ? '[SET]' : '[UNDEFINED]');
+  console.error('MONGO_DIRECT_URI:', process.env.MONGO_DIRECT_URI ? '[SET]' : '[UNDEFINED]');
   process.exit(1);
 }
 
