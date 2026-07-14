@@ -5590,7 +5590,7 @@ function saveState(){
   }, 600);
 }
 
-/* Carga desde la nube al arrancar — solo si hay datos más nuevos que el localStorage */
+/* Carga desde la nube al arrancar — solo aplica si los datos son más nuevos que los locales */
 async function loadCloudData(){
   try{
     const { data: row, error } = await _supa
@@ -5601,17 +5601,19 @@ async function loadCloudData(){
 
     if (error || !row || !row.data) return;
 
-    const incomingTs = row.updated_at;
+    const incomingTs  = row.updated_at;
+    const localTs     = localStorage.getItem('agromin_cloud_ts');
 
-    const normalized = cleanupLoadedSuppliers(normalizeData(row.data));
-    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0){
-      _lastCloudTs = incomingTs;
+    /* Si el localStorage tiene un timestamp MÁS RECIENTE que la nube,
+       no sobreescribir — nuestros datos locales son más nuevos */
+    if (localTs && localTs >= incomingTs){
+      _lastCloudTs = localTs;
       return;
     }
 
-    /* Si el localStorage ya tiene este timestamp exacto, no re-renderizar */
-    const localTs = localStorage.getItem('agromin_cloud_ts');
-    if (localTs && localTs === incomingTs){
+    /* La nube tiene datos más nuevos → aplicar */
+    const normalized = cleanupLoadedSuppliers(normalizeData(row.data));
+    if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0){
       _lastCloudTs = incomingTs;
       return;
     }
@@ -5627,7 +5629,6 @@ async function loadCloudData(){
       localStorage.setItem('agromin_cloud_ts', incomingTs);
     } catch(e){}
 
-    /* Al arrancar no hay UI activa aún, render es seguro */
     initialRecalc();
     buildNav();
     buildTopbar();
@@ -6035,6 +6036,7 @@ function buildTopbar(){
           <div class="user-menu-content" id="userMenuContent">
             <button class="menu-item" id="importBackupBtn">⬆ Importar respaldo</button>
             <button class="menu-item" id="exportBackupBtn">⬇ Exportar respaldo</button>
+            <button class="menu-item" id="forceSyncBtn">☁ Forzar sync a nube</button>
             <div class="menu-divider"></div>
             <button class="menu-item logout-item" id="logoutBtn">🚪 Salir</button>
           </div>
@@ -6066,6 +6068,33 @@ function buildTopbar(){
           clearAuth();
           window.location.hash = 'login';
           render();
+        });
+      }
+
+      const forceSyncBtn = document.getElementById('forceSyncBtn');
+      if (forceSyncBtn){
+        forceSyncBtn.addEventListener('click', async () => {
+          menuContent.classList.remove('open');
+          forceSyncBtn.disabled = true;
+          forceSyncBtn.textContent = '⏳ Subiendo...';
+          try{
+            const ts = new Date().toISOString();
+            const { error } = await _supa.from('agromin_state').upsert(
+              { id: CLOUD_ROW_ID, data: DATA, updated_at: ts },
+              { onConflict: 'id' }
+            );
+            if (error){
+              showToast('error', '⚠ Error', error.message);
+            } else {
+              _lastCloudTs = ts;
+              localStorage.setItem('agromin_cloud_ts', ts);
+              showToast('success', '☁ Sincronizado', 'Datos subidos a la nube correctamente.');
+            }
+          } catch(e){
+            showToast('error', '⚠ Error', 'No se pudo conectar con Supabase.');
+          }
+          forceSyncBtn.disabled = false;
+          forceSyncBtn.textContent = '☁ Forzar sync a nube';
         });
       }
       if (exportBtn){
