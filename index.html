@@ -5556,15 +5556,18 @@ let _saveTimer       = null;
 let _isSavingToCloud = false;
 
 function saveState(){
+  /* Guardar en localStorage inmediatamente */
   try{
     const payload = JSON.stringify(DATA);
     localStorage.setItem(STORAGE_KEY,        payload);
     localStorage.setItem(STORAGE_BACKUP_KEY, payload);
   } catch(e){}
 
+  /* Marcar como "guardando" YA — antes del timeout — para que pollOnce no sobreescriba */
+  _isSavingToCloud = true;
+
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
-    _isSavingToCloud = true;
     try{
       const ts = new Date().toISOString();
       await _supa.from('agromin_state').upsert(
@@ -5646,13 +5649,16 @@ function _uiIsBusy(){
 }
 
 /* Aplica datos de la nube de forma segura:
-   - Actualiza DATA/SUPPLIERS siempre (en memoria)
-   - Re-renderiza SOLO si no hay menú/modal abierto */
+   - Actualiza DATA/SUPPLIERS siempre (en memoria y localStorage)
+   - Re-renderiza SOLO si no hay menú/modal abierto Y no hay save pendiente */
 function applyCloudPayload(rawData, cloudTs){
   try{
     if (!rawData) return false;
     const normalized = cleanupLoadedSuppliers(normalizeData(rawData));
     if (!Array.isArray(normalized?.suppliers) || normalized.suppliers.length === 0) return false;
+
+    /* No aplicar nunca si tenemos un save en vuelo — nuestros datos son más nuevos */
+    if (_isSavingToCloud) return false;
 
     DATA      = normalized;
     SUPPLIERS = DATA.suppliers;
@@ -5669,6 +5675,7 @@ function applyCloudPayload(rawData, cloudTs){
     /* No interrumpir si el usuario tiene algo abierto */
     if (_uiIsBusy()) return true;
 
+    /* Re-renderizar solo el contenido, sin re-crear charts si no es necesario */
     initialRecalc();
     buildNav();
     buildTopbar();
