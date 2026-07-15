@@ -5544,6 +5544,7 @@ async function initSupabaseAuth(){
 
   // Escuchar cambios de sesión (login/logout desde otro dispositivo)
   _supabase.auth.onAuthStateChange(async (event, session) => {
+    const wasAuthenticated = !!_sbSession;
     _sbSession = session;
     if (event === 'SIGNED_IN' && session) {
       const userKey = getUserKeyFromEmail(session.user?.email);
@@ -5551,9 +5552,11 @@ async function initSupabaseAuth(){
         localStorage.setItem(AUTH_KEY, userKey);
         localStorage.setItem(AUTH_LAST_ACTIVITY, String(Date.now()));
       }
-      // Recargar datos desde nube al iniciar sesión
-      await loadFromCloud();
-      buildNav(); buildTopbar(); render();
+      // Solo re-renderizar si el usuario NO estaba ya autenticado (login real, no refresco de token)
+      if (!wasAuthenticated) {
+        await loadFromCloud();
+        buildNav(); buildTopbar(); render();
+      }
     } else if (event === 'SIGNED_OUT') {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_LAST_ACTIVITY);
