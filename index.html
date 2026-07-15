@@ -5845,7 +5845,7 @@ function recalcSingleProduct(s, p){
   } else { // SOLES
     p.rentaProd = (p.precioCompra||0) * rate;
     p.costoUnit = (p.precioCompra||0) + (p.flete||0) + p.rentaProd;
-    p.montoBrutoSoles = p.costoUnit * (p.stock||0);
+    p.montoBrutoSoles = (p.precioCompra||0) * (p.stock||0);
     p.imptoRenta = p.montoBrutoSoles * rate;
   }
   p.diferencia = (p.precioSistema||0) - p.costoUnit;
@@ -5875,8 +5875,16 @@ function recalcSupplier(s, tcComercial){
       p.imptoRenta = p.montoBrutoSoles * rate;
       p.diferencia = (p.precioSistema||0) - p.costoUnit;
     });
+  } else { // SOLES
+    s.products.forEach(p => {
+      p.rentaProd = (p.precioCompra||0) * rate;
+      p.costoUnit = (p.precioCompra||0) + (p.flete||0) + p.rentaProd;
+      p.montoBrutoSoles = (p.precioCompra||0) * (p.stock||0);
+      p.imptoRenta = p.montoBrutoSoles * rate;
+      p.diferencia = (p.precioSistema||0) - p.costoUnit;
+    });
   }
-  // Esquema SOLES: sin cambios, ya está en soles.
+  // Esquema SOLES: ya recalculado arriba.
 
   s.meta.tcComercial = tcComercial;
   recalcSupplierMeta(s);
@@ -7757,20 +7765,63 @@ function openProductDetailModal(s, pi){
   const fields = detailFields(s.schema);
   const bajo = (p.estadoStock||'').toUpperCase().includes('BAJO');
 
+  // Icon + accent color per field
+  const FIELD_META = {
+    montoBrutoSoles: {
+      icon: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M12 6v2m0 8v2"/></svg>`,
+      color: 'var(--lime)', bg: 'rgba(60,122,46,0.07)', border: 'rgba(60,122,46,0.18)'
+    },
+    montoBrutoUSD: {
+      icon: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M12 6v2m0 8v2"/></svg>`,
+      color: 'var(--sky)', bg: 'rgba(39,110,110,0.07)', border: 'rgba(39,110,110,0.18)'
+    },
+    imptoRenta: {
+      icon: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>`,
+      color: 'var(--amber)', bg: 'rgba(184,118,30,0.07)', border: 'rgba(184,118,30,0.18)'
+    },
+    precioSistema: {
+      icon: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+      color: 'var(--sky)', bg: 'rgba(39,110,110,0.05)', border: 'var(--line-soft)'
+    },
+    diferencia: {
+      icon: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+      color: null, bg: null, border: null // dynamic
+    },
+  };
+
   const items = fields.map(f => {
+    const meta = FIELD_META[f.key] || { icon: '', color: 'var(--text)', bg: 'var(--panel-2)', border: 'var(--line-soft)' };
+
     if (f.type === 'diff'){
       const n = Number(p[f.key]) || 0;
-      const cls = n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
-      return `<div class="detail-item"><div class="dlabel">${esc(f.label)}</div><div class="dvalue ${cls}">${fmtN(p[f.key],3)}</div></div>`;
+      const isNeg = n < 0, isPos = n > 0;
+      const clr   = isNeg ? 'var(--rust)' : isPos ? 'var(--lime)' : 'var(--text-faint)';
+      const bg    = isNeg ? 'rgba(171,58,44,0.07)' : isPos ? 'rgba(60,122,46,0.07)' : 'var(--panel-2)';
+      const bdr   = isNeg ? 'rgba(171,58,44,0.22)' : isPos ? 'rgba(60,122,46,0.22)' : 'var(--line-soft)';
+      const arrow = isNeg ? '▼' : isPos ? '▲' : '—';
+      return `
+        <div class="detail-item" style="background:${bg};border-color:${bdr};">
+          <div class="dlabel" style="display:flex;align-items:center;gap:5px;color:${clr};">
+            <span style="color:${clr};display:flex;align-items:center;">${meta.icon}</span>${esc(f.label)}
+          </div>
+          <div class="dvalue" style="color:${clr};">${arrow} ${fmtN(p[f.key],3)}</div>
+        </div>`;
     }
+
     const formatted = f.type === 'usd' ? fmtUSD(p[f.key]) : fmtS(p[f.key]);
-    return `<div class="detail-item"><div class="dlabel">${esc(f.label)}</div><div class="dvalue">${formatted}</div></div>`;
+    return `
+      <div class="detail-item" style="background:${meta.bg};border-color:${meta.border};">
+        <div class="dlabel" style="display:flex;align-items:center;gap:5px;color:${meta.color};">
+          <span style="color:${meta.color};display:flex;align-items:center;">${meta.icon}</span>${esc(f.label)}
+        </div>
+        <div class="dvalue" style="color:${meta.color};">${formatted}</div>
+      </div>`;
   }).join('');
 
   openModal(`
     <div class="modal-eyebrow">Ver detalles · ${esc(s.name)}</div>
     <div class="modal-title">${esc(p.producto)}</div>
-    <div class="modal-sub">${esc(p.contenido||'—')} · <span class="pill ${bajo?'bajo':'optimo'}" style="margin-left:4px;">${esc(p.estadoStock||'—')}</span></div>
+    <div class="modal-sub">${esc(p.contenido||'—')} · <span class="pill ${bajo?'bajo':'optimo'}" style="margin-left:4px;">${bajo?'⚠ Stock bajo':'✓ Óptimo'}</span></div>
     <div class="detail-grid">${items}</div>
   `);
 }
