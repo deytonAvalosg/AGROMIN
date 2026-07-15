@@ -7484,7 +7484,7 @@ function viewSupplier(s, idx){
   const bajo = stockBajoCount(s);
   const optimo = s.products.length - bajo;
   const inactiveCount = (s.inactiveProducts || []).length;
-  const rows = s.products.map((p,pi) => `<tr data-pi="${pi}">${cols.map(c => cellHTML(c, p[c.key], pi)).join('')}</tr>`).join('');
+  const rows = '';
 
   const inactiveRows = (s.inactiveProducts || []).map((p,pi) => `
     <tr>
@@ -8467,7 +8467,7 @@ function attachSupplierBehavior(idx){
 
   if (pageSizeSelect){
     pageSizeSelect.addEventListener('change', (e) => {
-      pageSize = parseInt(e.target.value, 10) || 12;
+      pageSize = parseInt(e.target.value, 10) || 15;
       currentPage = 1;
       applyAndRender();
     });
@@ -8565,6 +8565,9 @@ function attachSupplierBehavior(idx){
       showToast('success', 'Producto restaurado', 'Se devolvió al catálogo activo.');
     }
   };
+
+  // Render inicial con paginación correcta
+  applyAndRender();
 }
 
 /* ---------------------------- GLOBAL SEARCH ---------------------------- */
