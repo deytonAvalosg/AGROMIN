@@ -2263,9 +2263,9 @@ const AGROMIN_DATA = {
                                        "tcComercial":  3.5,
                                        "tcSunat":  3.4,
                                        "impuestoRenta":  0.02,
-                                       "ingresoBruto":  266656.22,
-                                       "totalDeducciones":  5333.12,
-                                       "utilidadNeta":  261323.09
+                                       "ingresoBruto":  267151.09,
+                                       "totalDeducciones":  5343.02,
+                                       "utilidadNeta":  261808.07
                                    },
                           "products":  [
                                            {
@@ -2647,16 +2647,16 @@ const AGROMIN_DATA = {
                                                "producto":  "CIPERMEX SUPER 10CE X 250ML",
                                                "contenido":  "250 ml",
                                                "flete":  0.6,
-                                               "rentaProd":  0,
+                                               "rentaProd":  0.2394,
                                                "stock":  48.0,
                                                "estadoStock":  "ÓPTIMO",
                                                "precioSistema":  18.0,
                                                "diferencia":  5.1906,
-                                               "imptoRenta":  0,
-                                               "precioOrigUSD":  0,
-                                               "costoUnit":  0.6,
-                                               "montoBrutoUSD":  0,
-                                               "montoBrutoSoles":  0
+                                               "imptoRenta":  11.4912,
+                                               "precioOrigUSD":  3.42,
+                                               "costoUnit":  12.8094,
+                                               "montoBrutoUSD":  164.16,
+                                               "montoBrutoSoles":  574.56
                                            },
                                            {
                                                "producto":  "TRIGGRR TRIHORMONAL X 1 L",
@@ -5655,7 +5655,12 @@ function normalizeData(data){
     supplier.products = Array.isArray(supplier.products) ? supplier.products : [];
     supplier.inactiveProducts = Array.isArray(supplier.inactiveProducts) ? supplier.inactiveProducts : [];
     supplier.products = supplier.products.map((p, pIdx) => {
-      const prod = { ...(baseSupplier.products?.[pIdx] || {}), ...p };
+      const base = baseSupplier.products?.[pIdx] || {};
+      const prod = { ...base, ...p };
+      // Campos calculados: preferir BASE_DATA (fuente autoritativa del Excel)
+      // para evitar que la nube sobreescriba valores corregidos
+      const computedFields = ['montoBrutoSoles','montoBrutoUSD','imptoRenta','costoUnit','rentaProd','diferencia','estadoStock','bolsasTon'];
+      computedFields.forEach(f => { if (base[f] !== undefined) prod[f] = base[f]; });
       ensureProductIdentity(prod, supplier.name || `Proveedor ${idx + 1}`, pIdx);
       prod.isActive = true;
       prod.deletedAt = null;
