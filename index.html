@@ -5359,7 +5359,7 @@ const AGROMIN_DATA = {
                           "name":  "VILLAFUERTE",
                           "schema":  "USD",
                           "meta":  {
-                                       "fechaReporte":  "2026-07-13T00:00:00",
+                                       "fechaReporte":  "2026-07-15T00:00:00",
                                        "tcComercial":  3.5,
                                        "tcSunat":  3.4,
                                        "impuestoRenta":  0.02,
@@ -5615,11 +5615,17 @@ async function loadFromCloud(){
     if (data?.payload){
       const parsed = JSON.parse(data.payload);
 
-      // Comparar fecha del primer proveedor con base de datos local
-      // Si BASE_DATA es más reciente, ignorar la nube y sincronizar BASE_DATA hacia arriba
-      const cloudDate  = parsed?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
-      const baseDate   = BASE_DATA?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
-      if (baseDate > cloudDate){
+      // Decidir fuente autoritativa:
+      // - Si la nube tiene MÁS proveedores o productos que BASE_DATA → usar nube (usuario agregó cosas)
+      // - Si BASE_DATA tiene fecha más reciente Y misma o más proveedores → usar BASE_DATA (actualización de código)
+      const cloudSuppliers  = (parsed?.suppliers || []).length;
+      const baseSuppliers   = (BASE_DATA?.suppliers || []).length;
+      const cloudDate = parsed?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
+      const baseDate  = BASE_DATA?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
+
+      const useBase = baseDate > cloudDate && baseSuppliers >= cloudSuppliers;
+
+      if (useBase){
         // BASE_DATA es más nuevo — inicializar desde ahí y subir a la nube
         DATA = cloneData(BASE_DATA);
         SUPPLIERS = DATA.suppliers;
@@ -5630,7 +5636,7 @@ async function loadFromCloud(){
         return true;
       }
 
-      // Nube es igual o más nueva — usar datos de la nube pero recalcular
+      // Nube tiene cambios del usuario — usar datos de la nube
       const normalized = cleanupLoadedSuppliers(normalizeData(parsed));
       if (Array.isArray(normalized?.suppliers) && normalized.suppliers.length > 0){
         DATA = normalized;
