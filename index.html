@@ -5865,7 +5865,7 @@ function recalcSingleProduct(s, p){
   } else { // SOLES
     p.rentaProd = (p.precioCompra||0) * rate;
     p.costoUnit = (p.precioCompra||0) + (p.flete||0) + p.rentaProd;
-    p.montoBrutoSoles = (p.precioCompra||0) * (p.stock||0);
+    p.montoBrutoSoles = p.costoUnit * (p.stock||0);
     p.imptoRenta = p.montoBrutoSoles * rate;
   }
   if (s.schema !== 'TON') p.diferencia = (p.precioSistema||0) - p.costoUnit;
@@ -5903,7 +5903,7 @@ function recalcSupplier(s, tcComercial){
     s.products.forEach(p => {
       p.rentaProd = (p.precioCompra||0) * rate;
       p.costoUnit = (p.precioCompra||0) + (p.flete||0) + p.rentaProd;
-      p.montoBrutoSoles = (p.precioCompra||0) * (p.stock||0);
+      p.montoBrutoSoles = p.costoUnit * (p.stock||0);
       p.imptoRenta = p.montoBrutoSoles * rate;
       p.diferencia = (p.precioSistema||0) - p.costoUnit;
     });
