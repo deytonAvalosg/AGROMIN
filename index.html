@@ -8018,6 +8018,10 @@ function openAddSemillaModal(s, supIdx, onSaved){
 
 function openProductDetailModal(s, pi){
   const p = s.products[pi];
+
+  // Always recalculate fresh so the modal never shows stale stored values
+  recalcSingleProduct(s, p);
+
   const fields = detailFields(s.schema);
   const bajo = (p.estadoStock||'').toUpperCase().includes('BAJO');
 
@@ -8060,7 +8064,7 @@ function openProductDetailModal(s, pi){
           <div class="dlabel" style="display:flex;align-items:center;gap:5px;color:${clr};">
             <span style="color:${clr};display:flex;align-items:center;">${meta.icon}</span>${esc(f.label)}
           </div>
-          <div class="dvalue" style="color:${clr};">${arrow} ${fmtN(p[f.key],3)}</div>
+          <div class="dvalue" style="color:${clr};">${arrow} ${fmtN(p[f.key],2)}</div>
         </div>`;
     }
 
