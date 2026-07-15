@@ -2652,11 +2652,11 @@ const AGROMIN_DATA = {
                                                "estadoStock":  "ÓPTIMO",
                                                "precioSistema":  18.0,
                                                "diferencia":  5.1906,
-                                               "imptoRenta":  0,
+                                               "imptoRenta":  12.4488,
                                                "precioOrigUSD":  3.42,
                                                "costoUnit":  12.8094,
                                                "montoBrutoUSD":  177.84,
-                                               "montoBrutoSoles":  0
+                                               "montoBrutoSoles":  622.44
                                            },
                                            {
                                                "producto":  "TRIGGRR TRIHORMONAL X 1 L",
@@ -5830,7 +5830,8 @@ function stockBajoCount(supplier){
 --------------------------------------------------------------------- */
 
 function recalcSupplierMeta(s){
-  const realProds = s.products.filter(p => !isHeaderRow(p));
+  // Exclude header rows AND semilla rows from main totals
+  const realProds = s.products.filter(p => !isHeaderRow(p) && !isSemillaRow(p));
   const sumMontoBruto = realProds.reduce((a,p)=>a+(p.montoBrutoSoles||0), 0);
   const sumImpto = realProds.reduce((a,p)=>a+(p.imptoRenta||0), 0);
   const gastosTotal = loadGastos(s.name).reduce((a,g)=>a+(parseFloat(g.monto)||0), 0);
@@ -5845,7 +5846,7 @@ function recalcSingleProduct(s, p){
   const tc = s.meta.tcComercial;
   const rate = (typeof s.meta.impuestoRenta === 'number') ? s.meta.impuestoRenta : 0.02;
 
-  if (s.schema === 'USD'){
+  if (s.schema === 'USD' && !isSemillaRow(p)){
     const base = (p.precioOrigUSD||0) * tc;
     p.rentaProd = base * rate;
     p.costoUnit = base + (p.flete||0) + p.rentaProd;
@@ -5877,6 +5878,7 @@ function recalcSupplier(s, tcComercial){
 
   if (s.schema === 'USD'){
     s.products.forEach(p => {
+      if (isHeaderRow(p) || isSemillaRow(p)) return; // semillas tienen su propio cálculo
       const base = (p.precioOrigUSD||0) * tcComercial;
       p.rentaProd = base * rate;
       p.costoUnit = base + (p.flete||0) + p.rentaProd;
