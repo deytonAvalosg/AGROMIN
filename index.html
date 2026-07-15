@@ -2647,15 +2647,15 @@ const AGROMIN_DATA = {
                                                "producto":  "CIPERMEX SUPER 10CE X 250ML",
                                                "contenido":  "250 ml",
                                                "flete":  0.6,
-                                               "rentaProd":  0.2394,
+                                               "rentaProd":  0,
                                                "stock":  48.0,
                                                "estadoStock":  "ÓPTIMO",
                                                "precioSistema":  18.0,
                                                "diferencia":  5.1906,
                                                "imptoRenta":  0,
-                                               "precioOrigUSD":  3.42,
-                                               "costoUnit":  12.8094,
-                                               "montoBrutoUSD":  164.16,
+                                               "precioOrigUSD":  0,
+                                               "costoUnit":  0.6,
+                                               "montoBrutoUSD":  0,
                                                "montoBrutoSoles":  0
                                            },
                                            {
@@ -5515,8 +5515,8 @@ const USER_EMAIL_MAP = {
 function getAuthRole(){ return 'admin'; }
 function isLimitedUser(){ return false; }
 
-const STORAGE_KEY = 'agromin_state_v1';
-const STORAGE_BACKUP_KEY = 'agromin_state_v1_backup';
+const STORAGE_KEY = 'agromin_state_v2';
+const STORAGE_BACKUP_KEY = 'agromin_state_v2_backup';
 const AUTH_KEY = 'agromin_user';
 const AUTH_LAST_ACTIVITY = 'agromin_last_activity';
 const AUTH_TIMEOUT_MS = 60 * 60 * 1000; // 1 hora
