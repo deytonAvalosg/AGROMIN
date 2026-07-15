@@ -591,7 +591,7 @@ table.data-table tbody tr:hover{ background: rgba(60,122,46,0.05); }
 .modal-overlay.open{ display:flex; }
 .modal-card{
   background: var(--panel); border-radius: 14px; border: 1px solid var(--line-soft);
-  max-width: 620px; width:100%; max-height: 86vh; overflow-y:auto;
+  max-width: 560px; width:100%; max-height: 86vh; overflow-y:auto;
   padding: 26px 26px 24px; position:relative;
   box-shadow: 0 20px 50px rgba(28,42,31,0.18);
 }
@@ -7505,7 +7505,6 @@ function viewSupplier(s, idx){
       <div class="eyebrow">Proveedor · <span class="badge-schema">esquema ${s.schema}</span></div>
       <div class="view-title">${esc(s.name)}</div>
       <div class="view-desc">Reporte generado el ${ (s.meta.fechaReporte||'').slice(0,10) || '—' }. Tipo de cambio comercial ${fmtN(s.meta.tcComercial,2)} · SUNAT ${fmtN(s.meta.tcSunat,2)}.</div>
-      <button class="btn-secondary" id="editSupplierSchemaBtn">Editar esquema</button>
     </div>
 
     <div class="kpi-grid">
@@ -7757,95 +7756,22 @@ function openProductDetailModal(s, pi){
   const p = s.products[pi];
   const fields = detailFields(s.schema);
   const bajo = (p.estadoStock||'').toUpperCase().includes('BAJO');
-  const stockNum = Number(p.stock) || 0;
-
-  const FIELD_ICONS = {
-    montoBrutoSoles: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M12 6v2m0 8v2"/></svg>`,
-    montoBrutoUSD:   `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M12 6v2m0 8v2"/></svg>`,
-    imptoRenta:      `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>`,
-    precioSistema:   `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
-    diferencia:      `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
-  };
-
-  const schemaBadge = {
-    USD:   `background:rgba(39,110,110,0.12);color:var(--sky)`,
-    TON:   `background:rgba(184,118,30,0.12);color:var(--amber)`,
-    SOLES: `background:rgba(60,122,46,0.12);color:var(--lime-dim)`,
-  }[s.schema] || `background:var(--panel-2);color:var(--text-faint)`;
-
-  const FIELD_COLORS = {
-    montoBrutoSoles: 'var(--lime)',
-    montoBrutoUSD:   'var(--sky)',
-    imptoRenta:      'var(--amber)',
-    precioSistema:   'var(--text)',
-  };
 
   const items = fields.map(f => {
-    const icon = FIELD_ICONS[f.key] || '';
-    const iconColor = FIELD_COLORS[f.key] || 'var(--text-faint)';
-
     if (f.type === 'diff'){
       const n = Number(p[f.key]) || 0;
-      const isPos = n > 0, isNeg = n < 0;
-      const clr   = isNeg ? 'var(--rust)' : isPos ? 'var(--lime)' : 'var(--text-faint)';
-      const arrow  = isNeg ? '▼' : isPos ? '▲' : '—';
-      const bg     = isNeg ? 'rgba(171,58,44,0.06)' : isPos ? 'rgba(60,122,46,0.06)' : 'var(--panel-2)';
-      const border = isNeg ? 'rgba(171,58,44,0.18)' : isPos ? 'rgba(60,122,46,0.18)' : 'var(--line-soft)';
-      return `<div class="detail-item" style="background:${bg};border-color:${border}">
-        <div class="dlabel" style="display:flex;align-items:center;gap:6px;color:${clr}">
-          <span style="color:${clr};display:flex;">${FIELD_ICONS.diferencia}</span>${esc(f.label)}
-        </div>
-        <div class="dvalue" style="color:${clr};font-size:22px;">${arrow} ${fmtN(p[f.key],3)}</div>
-      </div>`;
+      const cls = n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
+      return `<div class="detail-item"><div class="dlabel">${esc(f.label)}</div><div class="dvalue ${cls}">${fmtN(p[f.key],3)}</div></div>`;
     }
-
     const formatted = f.type === 'usd' ? fmtUSD(p[f.key]) : fmtS(p[f.key]);
-    return `<div class="detail-item">
-      <div class="dlabel" style="display:flex;align-items:center;gap:6px;">
-        <span style="color:${iconColor};display:flex;">${icon}</span>${esc(f.label)}
-      </div>
-      <div class="dvalue" style="color:${iconColor};font-size:20px;">${formatted}</div>
-    </div>`;
+    return `<div class="detail-item"><div class="dlabel">${esc(f.label)}</div><div class="dvalue">${formatted}</div></div>`;
   }).join('');
 
-  const stockMax   = 200;
-  const stockPct   = Math.min(100, Math.round((stockNum / stockMax) * 100));
-  const stockColor = bajo ? 'var(--amber)' : 'var(--lime)';
-
   openModal(`
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;">
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-          <span style="font-family:var(--mono);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--lime-dim);">${esc(s.name)}</span>
-          <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:6px;${schemaBadge};text-transform:uppercase;letter-spacing:0.5px;">${s.schema}</span>
-        </div>
-        <div style="font-size:18px;font-weight:700;color:var(--text);line-height:1.3;">${esc(p.producto)}</div>
-        <div style="font-family:var(--mono);font-size:11.5px;color:var(--text-faint);margin-top:5px;">${esc(p.contenido||'—')}</div>
-      </div>
-      <span class="pill ${bajo?'bajo':'optimo'}" style="flex-shrink:0;font-size:11.5px;padding:5px 12px;">${bajo?'⚠ Stock bajo':'✓ Óptimo'}</span>
-    </div>
-
-    <div style="background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:14px 16px;margin-bottom:18px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-faint);display:flex;align-items:center;gap:6px;">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
-          Stock disponible
-        </span>
-        <span style="font-family:var(--mono);font-size:18px;font-weight:700;color:${stockColor};">${fmtInt(stockNum)}</span>
-      </div>
-      <div style="height:6px;background:var(--line-soft);border-radius:99px;overflow:hidden;">
-        <div style="height:100%;width:${stockPct}%;background:${stockColor};border-radius:99px;"></div>
-      </div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:5px;text-align:right;">${stockPct}% del nivel de referencia</div>
-    </div>
-
+    <div class="modal-eyebrow">Ver detalles · ${esc(s.name)}</div>
+    <div class="modal-title">${esc(p.producto)}</div>
+    <div class="modal-sub">${esc(p.contenido||'—')} · <span class="pill ${bajo?'bajo':'optimo'}" style="margin-left:4px;">${esc(p.estadoStock||'—')}</span></div>
     <div class="detail-grid">${items}</div>
-
-    <div style="margin-top:14px;padding:10px 14px;background:var(--panel-2);border-radius:8px;border:1px solid var(--line-soft);font-family:var(--mono);font-size:10.5px;color:var(--text-faint);display:flex;align-items:center;gap:8px;">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      TC comercial: <strong style="color:var(--text);">${fmtN(s.meta.tcComercial,3)}</strong>
-      &nbsp;·&nbsp; Actualizado: <strong style="color:var(--text);">${s.meta.fechaReporte ? s.meta.fechaReporte.slice(0,10) : '—'}</strong>
-    </div>
   `);
 }
 
