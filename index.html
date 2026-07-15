@@ -5792,8 +5792,24 @@ try{
 }catch(e){}
 
 // Aggregate low-stock counts computed live from product data (source of truth for UI)
+function isHeaderRow(p){
+  const name = (p.producto || '').trim();
+  // Header/separator rows from Excel import
+  if (name.toUpperCase().startsWith('SISTEMA INVENTARIO')) return true;
+  if (name.toUpperCase() === 'PRODUCTO') return true;
+  // Completely empty rows
+  if (!p.stock && !p.precioOrigUSD && !p.precioCompra && !p.precioTonUSD) return true;
+  return false;
+}
+
+// Semilla rows: precioOrigUSD + numeric contenido (= impBolsa).
+// They belong in the semillas table, NOT in the main catalog.
+function isSemillaRow(p){
+  return !isHeaderRow(p) && p.precioOrigUSD != null && typeof p.contenido === 'number';
+}
+
 function stockBajoCount(supplier){
-  return supplier.products.filter(p => (p.estadoStock||'').toUpperCase().includes('BAJO')).length;
+  return supplier.products.filter(p => !isHeaderRow(p) && !isSemillaRow(p) && (p.estadoStock||'').toUpperCase().includes('BAJO')).length;
 }
 
 /* ---------------------------------------------------------------------
@@ -5814,8 +5830,9 @@ function stockBajoCount(supplier){
 --------------------------------------------------------------------- */
 
 function recalcSupplierMeta(s){
-  const sumMontoBruto = s.products.reduce((a,p)=>a+(p.montoBrutoSoles||0), 0);
-  const sumImpto = s.products.reduce((a,p)=>a+(p.imptoRenta||0), 0);
+  const realProds = s.products.filter(p => !isHeaderRow(p));
+  const sumMontoBruto = realProds.reduce((a,p)=>a+(p.montoBrutoSoles||0), 0);
+  const sumImpto = realProds.reduce((a,p)=>a+(p.imptoRenta||0), 0);
   const gastosTotal = loadGastos(s.name).reduce((a,g)=>a+(parseFloat(g.monto)||0), 0);
   s.meta.ingresoBruto = sumMontoBruto;
   s.meta.totalDeducciones = sumImpto + gastosTotal;
@@ -7492,8 +7509,9 @@ function cellHTML(col, val, pi){
 
 function viewSupplier(s, idx){
   const cols = schemaColumns(s.schema);
+  const realProducts = s.products.filter(p => !isHeaderRow(p) && !isSemillaRow(p));
   const bajo = stockBajoCount(s);
-  const optimo = s.products.length - bajo;
+  const optimo = realProducts.length - bajo;
   const inactiveCount = (s.inactiveProducts || []).length;
   const rows = '';
 
@@ -7548,10 +7566,10 @@ function viewSupplier(s, idx){
     </div>
 
     <div class="panel">
-      <div class="panel-title">Catálogo de productos <span class="hint">${s.products.length} registros</span></div>
+      <div class="panel-title">Catálogo de productos <span class="hint">${realProducts.length} registros</span></div>
       <div class="table-toolbar">
         <div class="filter-chips" id="filterChips">
-          <div class="chip active" data-filter="all">Todos (${s.products.length})</div>
+          <div class="chip active" data-filter="all">Todos (${realProducts.length})</div>
           <div class="chip" data-filter="optimo">Óptimo (${optimo})</div>
           <div class="chip" data-filter="bajo">Stock bajo (${bajo})</div>
         </div>
@@ -7587,6 +7605,82 @@ function viewSupplier(s, idx){
       </div>
     </div>
 
+    ${s.products.some(p => (p.producto||'').toUpperCase().startsWith('SISTEMA INVENTARIO')) ? (() => {
+      const tc   = s.meta.tcComercial || 3.5;
+      const rate = s.meta.impuestoRenta || 0.02;
+      const semRows = s.products.filter(p => isSemillaRow(p));
+
+      // Compute and store values on each semilla product so recalcSupplierMeta picks them up
+      semRows.forEach(p => {
+        const impBolsa   = Number(p.contenido) || 0;
+        const flete      = Number(p.flete)     || 0;
+        p.costoUnit      = (p.precioOrigUSD||0) * tc + impBolsa + flete;
+        p.montoBrutoUSD  = (p.precioOrigUSD||0) * (p.stock||0);
+        p.montoBrutoSoles= p.montoBrutoUSD * tc;
+        p.imptoRenta     = p.montoBrutoSoles * rate;
+        p.diferencia     = (p.precioSistema||0) - p.costoUnit;
+        p.estadoStock    = (p.stock||0) < 15 ? 'STOCK BAJO' : 'OPTIMO';
+      });
+
+      const rowsHTML = semRows.map(p => {
+        const pi        = s.products.indexOf(p);
+        const impBolsa  = Number(p.contenido) || 0;
+        const flete     = Number(p.flete)     || 0;
+        const bolsasImp = (p.stock||0) * impBolsa * flete;
+        const bajo      = (p.estadoStock||'').toUpperCase().includes('BAJO');
+        const difCls    = p.diferencia < 0 ? 'neg' : p.diferencia > 0 ? 'pos' : '';
+        return `<tr data-spi="${pi}">
+          <td class="prod-name">${esc(p.producto||'—')}</td>
+          <td class="num">${fmtUSD(p.precioOrigUSD)}</td>
+          <td class="num flete-cell">${fmtS(flete)}</td>
+          <td class="num renta-cell">${fmtS(impBolsa)}</td>
+          <td class="num money-cell">${fmtS(p.costoUnit)}</td>
+          <td class="num">${fmtInt(p.stock)}</td>
+          <td><span class="pill ${bajo?'bajo':'optimo'}">${esc(p.estadoStock||'—')}</span></td>
+          <td class="num money-cell">${fmtS(bolsasImp)}</td>
+          <td class="num money-cell">${fmtS(p.precioSistema)}</td>
+          <td class="num ${difCls}">${fmtN(p.diferencia,2)}</td>
+          <td class="actions-cell">
+            <button class="icon-btn semilla-detail-btn" data-spi="${pi}" title="Ver detalles" aria-label="Ver detalles">${ICON_EYE}</button>
+            <button class="icon-btn semilla-edit-btn"   data-spi="${pi}" title="Editar"       aria-label="Editar">${ICON_EDIT}</button>
+            <button class="icon-btn semilla-delete-btn" data-spi="${pi}" title="Eliminar"     aria-label="Eliminar">${ICON_DELETE}</button>
+          </td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="11" style="text-align:center;color:var(--text-faint);padding:16px;">Sin productos de semillas</td></tr>`;
+
+      return `
+    <div class="panel" id="semillasPanel" style="border-top:3px solid var(--sky);">
+      <div class="panel-title">
+        <span style="display:flex;align-items:center;gap:8px;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.17-2.84 7.67-6.73 8.65L12 22l-2.27-2.35C5.84 18.67 3 15.17 3 11a9 9 0 0 1 9-9Z"/><circle cx="12" cy="11" r="3"/></svg>
+          Sistema inventario · Semillas
+        </span>
+        <span class="hint">${semRows.length} producto${semRows.length!==1?'s':''} · tabla independiente</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="semillasTable">
+          <thead><tr>
+            <th>Producto</th>
+            <th class="num">Precio orig. (USD $)</th>
+            <th class="num">Flete</th>
+            <th class="num">Impto. bolsa</th>
+            <th class="num">Costo unit.</th>
+            <th class="num">Stock</th>
+            <th>Estado</th>
+            <th class="num">Bolsas × impto. (flete)</th>
+            <th class="num">Precio sistema</th>
+            <th class="num">Diferencia</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="semillasTableBody">${rowsHTML}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;">
+        <button class="btn-primary" id="addSemillaBtn" style="font-size:12.5px;padding:9px 16px;">+ Agregar semilla</button>
+      </div>
+    </div>`;
+    })() : ''}
+
     <div class="panel gastos-panel">
       <div class="panel-title">Tabla de gastos y deducciones independientes <span class="hint">editable · no se mezcla con el inventario</span></div>
       <div class="view-desc" style="margin-top:-6px;margin-bottom:14px;">Costos operativos propios de la empresa (transporte, personal, alquiler, etc.). Es una tabla aparte del cálculo de utilidad neta del inventario, tal como en el archivo original.</div>
@@ -7605,6 +7699,7 @@ function viewSupplier(s, idx){
 function attachSupplierCharts(s){
   const moneyKey = s.schema === 'SOLES' ? 'montoBrutoSoles' : 'montoBrutoSoles';
   const top = [...s.products]
+    .filter(p => !isHeaderRow(p) && !isSemillaRow(p))
     .sort((a,b)=>(b[moneyKey]||0)-(a[moneyKey]||0))
     .slice(0,8);
   const ctxTop = document.getElementById('chartSupTop');
@@ -7626,7 +7721,7 @@ function attachSupplierCharts(s){
     });
   }
   let optimo=0, bajo=0, otro=0;
-  s.products.forEach(p => {
+  s.products.filter(p => !isHeaderRow(p) && !isSemillaRow(p)).forEach(p => {
     const e = (p.estadoStock||'').toUpperCase();
     if (e.includes('BAJO')) bajo++;
     else if (e.includes('OPTIM') || e.includes('ÓPTIM')) optimo++;
@@ -7758,6 +7853,149 @@ function detailValueHTML(field, val){
     return n; // formatted below with class
   }
   return fmtS(val);
+}
+
+/* ---- SEMILLAS: detail / edit / add modals ---- */
+function openSemillaDetailModal(s, pi){
+  const p   = s.products[pi];
+  const tc  = s.meta.tcComercial || 3.5;
+  const rate= s.meta.impuestoRenta || 0.02;
+  const impBolsa  = Number(p.contenido) || 0;
+  const flete     = Number(p.flete)     || 0;
+  const costoUnit = (p.precioOrigUSD||0) * tc + impBolsa + flete;
+  const bolsasImp = (p.stock||0) * impBolsa * flete;
+  const brutoUSD  = (p.precioOrigUSD||0) * (p.stock||0);
+  const brutoSoles= brutoUSD * tc;
+  const imptoRenta= brutoSoles * rate;
+  const diferencia= (p.precioSistema||0) - costoUnit;
+  const bajo      = (p.estadoStock||'').toUpperCase().includes('BAJO');
+  const difClr    = diferencia < 0 ? 'var(--rust)' : diferencia > 0 ? 'var(--lime)' : 'var(--text-faint)';
+  const difArrow  = diferencia < 0 ? '▼' : diferencia > 0 ? '▲' : '—';
+
+  const ITEMS = [
+    { label:'Precio orig. (USD $)', val: fmtUSD(p.precioOrigUSD), color:'var(--sky)',   bg:'rgba(39,110,110,0.07)',  border:'rgba(39,110,110,0.18)' },
+    { label:'Flete',                val: fmtS(flete),              color:'#b48ead',      bg:'rgba(180,142,173,0.07)', border:'rgba(180,142,173,0.18)' },
+    { label:'Impuesto bolsa',       val: fmtS(impBolsa),           color:'var(--amber)', bg:'rgba(184,118,30,0.07)', border:'rgba(184,118,30,0.18)' },
+    { label:'Costo unitario',       val: fmtS(costoUnit),          color:'var(--text)',  bg:'var(--panel-2)',         border:'var(--line-soft)' },
+    { label:'Monto bruto (USD $)',  val: fmtUSD(brutoUSD),         color:'var(--sky)',   bg:'rgba(39,110,110,0.07)',  border:'rgba(39,110,110,0.18)' },
+    { label:'Monto bruto (S/.)',    val: fmtS(brutoSoles),         color:'var(--lime)',  bg:'rgba(60,122,46,0.07)',   border:'rgba(60,122,46,0.18)' },
+    { label:'Impto. renta (S/.)',   val: fmtS(imptoRenta),         color:'var(--amber)', bg:'rgba(184,118,30,0.07)', border:'rgba(184,118,30,0.18)' },
+    { label:'Bolsas × impto.',      val: fmtS(bolsasImp),          color:'var(--text-dim)', bg:'var(--panel-2)',     border:'var(--line-soft)' },
+    { label:'Precio sistema',       val: fmtS(p.precioSistema),    color:'var(--text)',  bg:'var(--panel-2)',         border:'var(--line-soft)' },
+  ];
+
+  openModal(`
+    <div class="modal-eyebrow">Ver detalles · ${esc(s.name)}</div>
+    <div class="modal-title">${esc(p.producto||'—')}</div>
+    <div class="modal-sub">
+      Semilla · Stock: <strong>${fmtInt(p.stock)}</strong>
+      &nbsp;·&nbsp;<span class="pill ${bajo?'bajo':'optimo'}" style="margin-left:2px;">${bajo?'⚠ Stock bajo':'✓ Óptimo'}</span>
+    </div>
+    <div class="detail-grid" style="margin-bottom:12px;">
+      ${ITEMS.map(it=>`
+        <div class="detail-item" style="background:${it.bg};border-color:${it.border};">
+          <div class="dlabel" style="color:${it.color};">${esc(it.label)}</div>
+          <div class="dvalue" style="color:${it.color};">${it.val}</div>
+        </div>`).join('')}
+      <div class="detail-item" style="background:${diferencia<0?'rgba(171,58,44,0.07)':diferencia>0?'rgba(60,122,46,0.07)':'var(--panel-2)'};border-color:${diferencia<0?'rgba(171,58,44,0.22)':diferencia>0?'rgba(60,122,46,0.22)':'var(--line-soft)'};">
+        <div class="dlabel" style="color:${difClr};">Diferencia</div>
+        <div class="dvalue" style="color:${difClr};">${difArrow} ${fmtN(diferencia,3)}</div>
+      </div>
+    </div>
+  `);
+}
+
+function openSemillaEditModal(s, supIdx, pi, onSaved){
+  const p = s.products[pi];
+  openModal(`
+    <div class="modal-eyebrow">Editar semilla · ${esc(s.name)}</div>
+    <div class="modal-title">${esc(p.producto||'—')}</div>
+    <div class="form-grid">
+      <div class="form-field"><label>Nombre del producto</label><input id="sf_producto" value="${esc(p.producto||'')}"/></div>
+      <div class="form-field"><label>Precio orig. (USD $)</label><input type="number" step="0.01" id="sf_precio" value="${p.precioOrigUSD??0}"/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="sf_flete" value="${p.flete??0}"/></div>
+      <div class="form-field"><label>Impuesto bolsa (S/.)</label><input type="number" step="0.01" id="sf_impBolsa" value="${p.contenido??0}"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="sf_stock" value="${p.stock??0}"/></div>
+      <div class="form-field"><label>Precio sistema (S/.)</label><input type="number" step="0.01" id="sf_pSistema" value="${p.precioSistema??0}"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="sfCancelBtn">Cancelar</button>
+      <button class="btn-primary"   id="sfSaveBtn">Guardar</button>
+    </div>
+  `);
+  document.getElementById('sfCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('sfSaveBtn').addEventListener('click', () => {
+    const num = id => parseFloat(document.getElementById(id).value) || 0;
+    p.producto     = document.getElementById('sf_producto').value.trim() || p.producto;
+    p.precioOrigUSD= num('sf_precio');
+    p.flete        = num('sf_flete');
+    p.contenido    = num('sf_impBolsa');  // impBolsa stored in contenido
+    p.stock        = num('sf_stock');
+    p.precioSistema= num('sf_pSistema');
+    // Recalc stored fields
+    const tc   = s.meta.tcComercial || 3.5;
+    const rate = s.meta.impuestoRenta || 0.02;
+    p.costoUnit      = p.precioOrigUSD * tc + p.contenido + p.flete;
+    p.montoBrutoUSD  = p.precioOrigUSD * p.stock;
+    p.montoBrutoSoles= p.montoBrutoUSD * tc;
+    p.imptoRenta     = p.montoBrutoSoles * rate;
+    p.diferencia     = p.precioSistema - p.costoUnit;
+    p.estadoStock    = p.stock < 15 ? 'STOCK BAJO' : 'OPTIMO';
+    recalcSupplierMeta(s);
+    saveState();
+    closeModal();
+    if (typeof onSaved === 'function') onSaved();
+    showToast('success', 'Semilla actualizada', 'Los datos fueron guardados correctamente.');
+  });
+}
+
+function openAddSemillaModal(s, supIdx, onSaved){
+  openModal(`
+    <div class="modal-eyebrow">Agregar semilla · ${esc(s.name)}</div>
+    <div class="modal-title">Nueva semilla</div>
+    <div class="form-grid">
+      <div class="form-field full"><label>Nombre del producto</label><input id="sf_producto" placeholder="Ej. SEMILLA DE MAIZ DRACO"/></div>
+      <div class="form-field"><label>Precio orig. (USD $)</label><input type="number" step="0.01" id="sf_precio" value="0"/></div>
+      <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="sf_flete" value="0"/></div>
+      <div class="form-field"><label>Impuesto bolsa (S/.)</label><input type="number" step="0.01" id="sf_impBolsa" value="0"/></div>
+      <div class="form-field"><label>Stock</label><input type="number" step="1" id="sf_stock" value="0"/></div>
+      <div class="form-field"><label>Precio sistema (S/.)</label><input type="number" step="0.01" id="sf_pSistema" value="0"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="sfCancelBtn">Cancelar</button>
+      <button class="btn-primary"   id="sfSaveBtn">Agregar</button>
+    </div>
+  `);
+  document.getElementById('sfCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('sfSaveBtn').addEventListener('click', () => {
+    const num = id => parseFloat(document.getElementById(id).value) || 0;
+    const nombre = document.getElementById('sf_producto').value.trim();
+    if (!nombre){ showToast('error','Falta nombre','Ingresa un nombre para la semilla.'); return; }
+    const tc   = s.meta.tcComercial || 3.5;
+    const rate = s.meta.impuestoRenta || 0.02;
+    const precioOrigUSD = num('sf_precio');
+    const flete         = num('sf_flete');
+    const contenido     = num('sf_impBolsa');
+    const stock         = num('sf_stock');
+    const precioSistema = num('sf_pSistema');
+    const costoUnit     = precioOrigUSD * tc + contenido + flete;
+    const montoBrutoUSD = precioOrigUSD * stock;
+    const montoBrutoSoles= montoBrutoUSD * tc;
+    const p = {
+      producto: nombre, contenido, flete, stock, precioSistema, precioOrigUSD,
+      costoUnit, montoBrutoUSD, montoBrutoSoles,
+      imptoRenta: montoBrutoSoles * rate,
+      diferencia: precioSistema - costoUnit,
+      estadoStock: stock < 15 ? 'STOCK BAJO' : 'OPTIMO',
+      rentaProd: null, _uid: Date.now().toString(36)
+    };
+    s.products.push(p);
+    recalcSupplierMeta(s);
+    saveState();
+    closeModal();
+    if (typeof onSaved === 'function') onSaved();
+    showToast('success', 'Semilla agregada', `${nombre} fue añadida al sistema.`);
+  });
 }
 
 function openProductDetailModal(s, pi){
@@ -8472,7 +8710,7 @@ function attachSupplierBehavior(idx){
   let pageSize = parseInt(pageSizeSelect?.value, 10) || 15;
 
   function applyAndRender(){
-    let items = s.products.map((p,pi)=>({p,pi}));
+    let items = s.products.map((p,pi)=>({p,pi})).filter(({p}) => !isHeaderRow(p) && !isSemillaRow(p));
     if (currentFilter === 'optimo') items = items.filter(x => !(x.p.estadoStock||'').toUpperCase().includes('BAJO'));
     if (currentFilter === 'bajo') items = items.filter(x => (x.p.estadoStock||'').toUpperCase().includes('BAJO'));
     if (currentSearch) items = items.filter(x => (x.p.producto||'').toLowerCase().includes(currentSearch));
@@ -8576,13 +8814,44 @@ function attachSupplierBehavior(idx){
 
   // Delegación de eventos para los botones de Ver detalles / Editar / Eliminar / Restaurar
   content.onclick = (e) => {
-    const detailBtn = e.target.closest('.detail-btn');
-    const editBtn = e.target.closest('.edit-btn');
-    const lotBtn = e.target.closest('.lot-btn');
-    const deleteBtn = e.target.closest('.delete-btn');
-    const restoreBtn = e.target.closest('.restore-btn');
+    const detailBtn       = e.target.closest('.detail-btn');
+    const editBtn         = e.target.closest('.edit-btn');
+    const lotBtn          = e.target.closest('.lot-btn');
+    const deleteBtn       = e.target.closest('.delete-btn');
+    const restoreBtn      = e.target.closest('.restore-btn');
+    const semillaDetailBtn= e.target.closest('.semilla-detail-btn');
+    const semillaEditBtn  = e.target.closest('.semilla-edit-btn');
+    const semillaDeleteBtn= e.target.closest('.semilla-delete-btn');
+    const addSemillaBtn   = e.target.closest('#addSemillaBtn');
 
-    if (detailBtn){
+    if (addSemillaBtn){
+      openAddSemillaModal(s, idx, () => { buildNav(); buildTopbar(); render(); });
+    } else if (semillaDetailBtn){
+      const pi = parseInt(semillaDetailBtn.dataset.spi, 10);
+      openSemillaDetailModal(s, pi);
+    } else if (semillaEditBtn){
+      const pi = parseInt(semillaEditBtn.dataset.spi, 10);
+      openSemillaEditModal(s, idx, pi, () => { buildNav(); buildTopbar(); render(); });
+    } else if (semillaDeleteBtn){
+      const pi = parseInt(semillaDeleteBtn.dataset.spi, 10);
+      const product = s.products[pi];
+      if (!product) return;
+      Swal.fire({
+        title: '¿Eliminar semilla?',
+        text: `"${product.producto || 'sin nombre'}" se eliminará del sistema.`,
+        icon: 'warning', showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar',
+        customClass: { popup: 'agromin-swal' }
+      }).then(res => {
+        if (res.isConfirmed){
+          s.products.splice(pi, 1);
+          recalcSupplierMeta(s);
+          saveState();
+          buildNav(); buildTopbar(); render();
+          showToast('success', 'Semilla eliminada', 'El producto fue eliminado del sistema.');
+        }
+      });
+    } else if (detailBtn){
       const pi = parseInt(detailBtn.dataset.pi, 10);
       openProductDetailModal(s, pi);
     } else if (editBtn){
@@ -8621,6 +8890,7 @@ function attachSupplierBehavior(idx){
 
   // Render inicial con paginación correcta
   applyAndRender();
+
 }
 
 /* ---------------------------- GLOBAL SEARCH ---------------------------- */
