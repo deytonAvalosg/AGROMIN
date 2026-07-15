@@ -5853,19 +5853,22 @@ function recalcSingleProduct(s, p){
     p.montoBrutoSoles = p.montoBrutoUSD * tc;
     p.imptoRenta = p.montoBrutoSoles * rate;
   } else if (s.schema === 'TON'){
+    const kgContenido = parseFloat(p.contenido) || (p.bolsasTon ? 1000/p.bolsasTon : 50);
+    p.bolsasTon  = 1000 / kgContenido;
     const unitUSD = p.bolsasTon ? (p.precioTonUSD||0) / p.bolsasTon : 0;
     const base = unitUSD * tc;
     p.costoUnit = base + (p.flete||0) + (p.impuestoBolsa||0);
-    p.montoBrutoUSD = unitUSD * (p.stock||0);
-    p.montoBrutoSoles = p.montoBrutoUSD * tc;
-    p.imptoRenta = p.montoBrutoSoles * rate;
+    p.montoBrutoUSD  = unitUSD * (p.stock||0);
+    p.montoBrutoSoles= p.montoBrutoUSD * tc;
+    p.imptoRenta     = p.montoBrutoSoles * rate;
+    p.diferencia     = p.costoUnit - (p.precioSistema||0);  // Excel: G - K
   } else { // SOLES
     p.rentaProd = (p.precioCompra||0) * rate;
     p.costoUnit = (p.precioCompra||0) + (p.flete||0) + p.rentaProd;
     p.montoBrutoSoles = (p.precioCompra||0) * (p.stock||0);
     p.imptoRenta = p.montoBrutoSoles * rate;
   }
-  p.diferencia = (p.precioSistema||0) - p.costoUnit;
+  if (s.schema !== 'TON') p.diferencia = (p.precioSistema||0) - p.costoUnit;
   p.estadoStock = (p.stock||0) < 15 ? 'STOCK BAJO' : 'OPTIMO';
 }
 
@@ -5884,13 +5887,17 @@ function recalcSupplier(s, tcComercial){
     });
   } else if (s.schema === 'TON'){
     s.products.forEach(p => {
-      const unitUSD = p.bolsasTon ? (p.precioTonUSD||0) / p.bolsasTon : 0;
-      const base = unitUSD * tcComercial;
-      p.costoUnit = base + (p.flete||0) + (p.impuestoBolsa||0);
-      p.montoBrutoUSD = unitUSD * (p.stock||0);
-      p.montoBrutoSoles = p.montoBrutoUSD * tcComercial;
-      p.imptoRenta = p.montoBrutoSoles * rate;
-      p.diferencia = (p.precioSistema||0) - p.costoUnit;
+      if (isHeaderRow(p)) return;
+      const kgContenido = parseFloat(p.contenido) || (p.bolsasTon ? 1000/p.bolsasTon : 50);
+      p.bolsasTon   = 1000 / kgContenido;
+      const unitUSD = (p.precioTonUSD||0) / p.bolsasTon;
+      const base    = unitUSD * tcComercial;
+      p.costoUnit      = base + (p.flete||0) + (p.impuestoBolsa||0);
+      p.montoBrutoUSD  = unitUSD * (p.stock||0);
+      p.montoBrutoSoles= p.montoBrutoUSD * tcComercial;
+      p.imptoRenta     = p.montoBrutoSoles * rate;
+      p.diferencia     = p.costoUnit - (p.precioSistema||0);  // Excel: G - K
+      p.estadoStock    = (p.stock||0) < 15 ? 'STOCK BAJO' : 'OPTIMO';
     });
   } else { // SOLES
     s.products.forEach(p => {
@@ -7425,17 +7432,20 @@ function schemaColumns(schema){
   }
   if (schema === 'TON'){
     return [
-      {key:'producto', label:'Producto', type:'text'},
-      {key:'contenido', label:'Contenido', type:'text'},
-      {key:'precioTonUSD', label:'Precio / Ton (USD)', type:'usd'},
-      {key:'bolsasTon', label:'Bolsas / Ton', type:'int'},
-      {key:'flete', label:'Flete', type:'money'},
-      {key:'impuestoBolsa', label:'Impto. bolsa', type:'money'},
-      {key:'rentaProd', label:'I. Renta (prod)', type:'money'},
-      {key:'costoUnit', label:'Costo unit.', type:'money'},
-      {key:'stock', label:'Stock', type:'int'},
-      {key:'estadoStock', label:'Estado', type:'pill'},
-      {key:'acciones', label:'', type:'actions'},
+      {key:'producto',      label:'Producto',           type:'text'},
+      {key:'contenido',     label:'Contenido',           type:'text'},
+      {key:'precioTonUSD',  label:'Precio / Ton (USD)',  type:'usd'},
+      {key:'bolsasTon',     label:'Bolsas / Ton',        type:'num2'},
+      {key:'flete',         label:'Flete',               type:'money'},
+      {key:'impuestoBolsa', label:'Impto. bolsa',        type:'money'},
+      {key:'costoUnit',     label:'Costo unit.',         type:'money'},
+      {key:'stock',         label:'Stock',               type:'int'},
+      {key:'estadoStock',   label:'Estado',              type:'pill'},
+      {key:'montoBrutoUSD', label:'Monto bruto (USD)',   type:'usd'},
+      {key:'montoBrutoSoles',label:'Monto bruto (S/.)',  type:'money'},
+      {key:'imptoRenta',    label:'Impto. renta',        type:'money'},
+      {key:'diferencia',    label:'Diferencia',          type:'diff'},
+      {key:'acciones',      label:'',                    type:'actions'},
     ];
   }
   // USD default
@@ -7452,12 +7462,22 @@ function schemaColumns(schema){
   ];
 }
 
-/* Campos que se muestran en el modal "Ver detalles" en vez de la tabla */
+/* Campos que se muestran en el modal "Ver detalles" */
 function detailFields(schema){
+  if (schema === 'TON'){
+    return [
+      {key:'montoBrutoUSD',   label:'Monto bruto (USD $)',        type:'usd'},
+      {key:'montoBrutoSoles', label:'Monto bruto (S/.)',           type:'money'},
+      {key:'imptoRenta',      label:'Impuesto a la renta',         type:'money'},
+      {key:'precioSistema',   label:'Precio de venta (sistema)',   type:'money'},
+      {key:'costoUnit',       label:'Costo unitario',              type:'money'},
+      {key:'diferencia',      label:'Diferencia (costo − sistema)', type:'diff'},
+    ];
+  }
   const base = [
     {key:'montoBrutoSoles', label:'Monto bruto (S/.)', type:'money'},
   ];
-  if (schema === 'USD' || schema === 'TON'){
+  if (schema === 'USD'){
     base.unshift({key:'montoBrutoUSD', label:'Monto bruto (USD $)', type:'usd'});
   }
   if (schema === 'SOLES'){
@@ -7466,7 +7486,7 @@ function detailFields(schema){
     base.push({key:'imptoRenta', label:'Impuesto a la renta', type:'money'});
   }
   base.push({key:'precioSistema', label:'Precio de venta (sistema)', type:'money'});
-  base.push({key:'diferencia', label:'Diferencia (margen)', type:'diff'});
+  base.push({key:'diferencia',    label:'Diferencia (margen)',        type:'diff'});
   return base;
 }
 
@@ -7504,6 +7524,7 @@ function cellHTML(col, val, pi){
   }
   if (col.type === 'usd') return `<td class="num usd-cell">${fmtUSD(val)}</td>`;
   if (col.type === 'int') return `<td class="num">${fmtN(val,0)}</td>`;
+  if (col.type === 'num2') return `<td class="num">${fmtN(val,2)}</td>`;
   return `<td class="num">${val ?? '—'}</td>`;
 }
 
@@ -8078,7 +8099,7 @@ function openProductEditModal(s, supIdx, pi, onSaved){
   } else if (s.schema === 'TON'){
     fieldsHTML = `
       <div class="form-field"><label>Precio / Ton (USD)</label><input type="number" step="0.01" id="f_precioTonUSD" value="${p.precioTonUSD ?? 0}"/></div>
-      <div class="form-field"><label>Bolsas / Ton</label><input type="number" step="0.01" id="f_bolsasTon" value="${p.bolsasTon ?? 0}"/></div>
+      <div class="form-field"><label>Contenido (kg por bolsa)</label><input type="number" step="0.01" id="f_contenidoKg" value="${parseFloat(p.contenido)||50}"/></div>
       <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="${p.flete ?? 0}"/></div>
       <div class="form-field"><label>Impuesto bolsa (S/.)</label><input type="number" step="0.01" id="f_impuestoBolsa" value="${p.impuestoBolsa ?? 0}"/></div>
       <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="${p.stock ?? 0}"/></div>
@@ -8118,9 +8139,11 @@ function openProductEditModal(s, supIdx, pi, onSaved){
       p.stock = newStock;
       p.precioSistema = num('f_precioSistema');
     } else if (s.schema === 'TON'){
-      p.precioTonUSD = num('f_precioTonUSD');
-      p.bolsasTon = num('f_bolsasTon');
-      p.flete = num('f_flete');
+      p.precioTonUSD  = num('f_precioTonUSD');
+      const kg        = num('f_contenidoKg') || 50;
+      p.contenido     = kg;       // store as number (kg)
+      p.bolsasTon     = 1000 / kg;
+      p.flete         = num('f_flete');
       p.impuestoBolsa = num('f_impuestoBolsa');
       p.stock = newStock;
       p.precioSistema = num('f_precioSistema');
@@ -8242,8 +8265,7 @@ function openAddProductModal(s, supIdx, onSaved){
     fieldsHTML = `
       <div class="form-field full"><label>Producto</label><input type="text" id="f_producto" value=""/></div>
       <div class="form-field"><label>Precio / Ton (USD)</label><input type="number" step="0.01" id="f_precioTonUSD" value="0"/></div>
-      <div class="form-field"><label>Bolsas / Ton</label><input type="number" step="1" id="f_bolsasTon" value="1"/></div>
-      <div class="form-field"><label>Contenido</label><input type="text" id="f_contenido" value=""/></div>
+      <div class="form-field"><label>Contenido (kg por bolsa)</label><input type="number" step="0.01" id="f_contenidoKg" value="50"/></div>
       <div class="form-field"><label>Flete (S/.)</label><input type="number" step="0.01" id="f_flete" value="0"/></div>
       <div class="form-field"><label>Impuesto bolsa (S/.)</label><input type="number" step="0.01" id="f_impuestoBolsa" value="0"/></div>
       <div class="form-field"><label>Stock</label><input type="number" step="1" id="f_stock" value="0"/></div>
@@ -8301,8 +8323,10 @@ function openAddProductModal(s, supIdx, onSaved){
     if (schema === 'USD'){
       newProduct.precioOrigUSD = num('f_precioOrigUSD');
     } else if (schema === 'TON'){
-      newProduct.precioTonUSD = num('f_precioTonUSD');
-      newProduct.bolsasTon = num('f_bolsasTon') || 1;
+      const kg = num('f_contenidoKg') || 50;
+      newProduct.precioTonUSD  = num('f_precioTonUSD');
+      newProduct.contenido     = kg;
+      newProduct.bolsasTon     = 1000 / kg;
       newProduct.impuestoBolsa = num('f_impuestoBolsa');
     } else {
       newProduct.precioCompra = num('f_precioCompra');
