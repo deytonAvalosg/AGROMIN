@@ -7783,7 +7783,8 @@ function openProductDetailModal(s, pi){
     precioSistema:   'var(--text)',
   };
 
-  const items = fields.map(f => {
+  // Main calculated fields
+  const calcItems = fields.map(f => {
     const icon = FIELD_ICONS[f.key] || '';
     const iconColor = FIELD_COLORS[f.key] || 'var(--text-faint)';
 
@@ -7819,13 +7820,41 @@ function openProductDetailModal(s, pi){
   const stockPct = Math.min(100, Math.round((stockNum / stockMax) * 100));
   const stockColor = bajo ? 'var(--amber)' : 'var(--lime)';
 
-  // Extra info row
-  const extraInfo = [
-    p.contenido   ? `<span style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> ${esc(p.contenido)}</span>` : '',
-    p.precioCompra != null ? `<span style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> Compra: ${fmtS(p.precioCompra)}</span>` : '',
-    p.flete != null ? `<span style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8Z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Flete: ${fmtS(p.flete)}</span>` : '',
-    p.precioOrigUSD != null ? `<span style="display:inline-flex;align-items:center;gap:4px;">$ Orig: ${fmtUSD(p.precioOrigUSD)}</span>` : '',
-  ].filter(Boolean).join('<span style="color:var(--line);margin:0 6px">·</span>');
+  // Helper: build a standard detail card
+  function detailCard(key, label, value){
+    const EXTRA_ICONS = {
+      contenido:     `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`,
+      precioCompra:  `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+      precioOrigUSD: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+      precioTonUSD:  `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+      flete:         `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8Z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>`,
+      bolsasTon:     `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>`,
+      impuestoBolsa: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>`,
+    };
+    const EXTRA_COLORS = {
+      contenido: 'var(--text-dim)', precioCompra: 'var(--text-dim)',
+      precioOrigUSD: 'var(--sky)', precioTonUSD: 'var(--sky)',
+      flete: '#b48ead', bolsasTon: 'var(--text-dim)', impuestoBolsa: 'var(--amber)',
+    };
+    const icon  = EXTRA_ICONS[key]  || '';
+    const color = EXTRA_COLORS[key] || 'var(--text-faint)';
+    return `<div class="detail-item">
+      <div class="dlabel" style="display:flex;align-items:center;gap:6px;">
+        <span style="color:${color};display:flex;">${icon}</span>${esc(label)}
+      </div>
+      <div class="dvalue" style="color:${color};font-size:20px;">${value}</div>
+    </div>`;
+  }
+
+  // Extra input fields as cards (schema-dependent)
+  const extraCards = [];
+  if (p.contenido) extraCards.push(detailCard('contenido', 'Contenido', esc(p.contenido)));
+  if (s.schema === 'SOLES' && p.precioCompra != null) extraCards.push(detailCard('precioCompra', 'Precio de compra', fmtS(p.precioCompra)));
+  if (s.schema === 'USD'   && p.precioOrigUSD != null) extraCards.push(detailCard('precioOrigUSD', 'Precio orig. (USD)', fmtUSD(p.precioOrigUSD)));
+  if (s.schema === 'TON'   && p.precioTonUSD  != null) extraCards.push(detailCard('precioTonUSD', 'Precio / Ton (USD)', fmtUSD(p.precioTonUSD)));
+  if (s.schema === 'TON'   && p.bolsasTon     != null) extraCards.push(detailCard('bolsasTon', 'Bolsas / Ton', fmtN(p.bolsasTon, 2)));
+  if (p.flete != null) extraCards.push(detailCard('flete', 'Flete', fmtS(p.flete)));
+  if (s.schema === 'TON'   && p.impuestoBolsa != null) extraCards.push(detailCard('impuestoBolsa', 'Impuesto bolsa', fmtS(p.impuestoBolsa)));
 
   openModal(`
     <!-- Header -->
@@ -7856,8 +7885,14 @@ function openProductDetailModal(s, pi){
       <div style="font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:5px;text-align:right;">${stockPct}% del nivel de referencia</div>
     </div>
 
-    <!-- Detail grid -->
-    <div class="detail-grid">${items}</div>
+    <!-- Input fields (contenido, compra, flete…) -->
+    ${extraCards.length ? `
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:8px;">Datos de entrada</div>
+    <div class="detail-grid" style="margin-bottom:18px;">${extraCards.join('')}</div>` : ''}
+
+    <!-- Calculated fields -->
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:8px;">Resultados calculados</div>
+    <div class="detail-grid">${calcItems}</div>
 
     <!-- Footer hint -->
     <div style="margin-top:14px;padding:10px 14px;background:var(--panel-2);border-radius:8px;border:1px solid var(--line-soft);font-family:var(--mono);font-size:10.5px;color:var(--text-faint);display:flex;align-items:center;gap:8px;">
