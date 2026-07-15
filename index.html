@@ -863,28 +863,28 @@ const AGROMIN_DATA = {
                                                "contenido":  "1 kg",
                                                "flete":  0.6,
                                                "rentaProd":  2.746,
-                                               "stock":  164.0,
+                                               "stock":  163.0,
                                                "estadoStock":  "OPTIMO",
                                                "precioSistema":  140.0,
                                                "diferencia":  -0.646,
-                                               "imptoRenta":  461.31888,
+                                               "imptoRenta":  458.50596,
                                                "precioCompra":  137.3,
                                                "costoUnit":  140.646,
-                                               "montoBrutoSoles":  23065.944
+                                               "montoBrutoSoles":  22925.298
                                            },
                                            {
                                                "producto":  "BAYFOLAN (11-8-6) X LT",
                                                "contenido":  "1 litro",
                                                "flete":  0.6,
                                                "rentaProd":  0.58,
-                                               "stock":  108.0,
+                                               "stock":  86.0,
                                                "estadoStock":  "OPTIMO",
                                                "precioSistema":  37.0,
                                                "diferencia":  6.82,
-                                               "imptoRenta":  65.1888,
+                                               "imptoRenta":  51.9096,
                                                "precioCompra":  29.0,
                                                "costoUnit":  30.18,
-                                               "montoBrutoSoles":  3259.44
+                                               "montoBrutoSoles":  2595.48
                                            },
                                            {
                                                "producto":  "BAYFOLAN AKTIVATOR X 20LT",
@@ -905,14 +905,14 @@ const AGROMIN_DATA = {
                                                "contenido":  "1 kg",
                                                "flete":  0.6,
                                                "rentaProd":  1.46,
-                                               "stock":  167.0,
+                                               "stock":  152.0,
                                                "estadoStock":  "OPTIMO",
                                                "precioSistema":  78.0,
                                                "diferencia":  2.94,
-                                               "imptoRenta":  250.7004,
+                                               "imptoRenta":  228.1824,
                                                "precioCompra":  73.0,
                                                "costoUnit":  75.06,
-                                               "montoBrutoSoles":  12535.02
+                                               "montoBrutoSoles":  11409.12
                                            },
                                            {
                                                "producto":  "LARVIN PLUS X 1LT",
@@ -5963,13 +5963,10 @@ function recalcAll(tcComercial, tcSunat){
   saveState();
 }
 
-// Recalcular productos y totales al iniciar usando el stock almacenado.
-// Esto garantiza que montoBrutoSoles sea siempre correcto después de ventas.
+// Al iniciar: solo recalcular los totales del proveedor sumando montoBrutoSoles almacenados.
+// NO recalcular productos individuales — eso sobrescribiría datos correctos con fórmulas.
 function initialRecalc(){
-  const tc = DATA.cambioDolar.tcComercial;
-  SUPPLIERS.forEach(s => {
-    recalcSupplier(s, tc);
-  });
+  SUPPLIERS.forEach(s => recalcSupplierMeta(s));
 }
 
 function moveToInactive(s, product){
@@ -6799,8 +6796,10 @@ function openVentasDetailModal(supIdx, uid, onUpdate){
         <td class="num">${fmtN(v.cantidad, 0)}</td>
         <td>${esc(v.nota || '—')}</td>
         <td class="actions-cell">
-          <button class="icon-btn delete-btn venta-del-btn" title="Eliminar venta y devolver stock"
-            data-saleid="${esc(v.id || '')}">🗑</button>
+          <button class="icon-btn delete-btn venta-del-btn" title="Eliminar y devolver stock"
+            data-saleid="${esc(v.id || '')}">↩</button>
+          <button class="icon-btn delete-btn venta-perm-btn" title="Eliminar permanentemente (sin devolver stock)"
+            data-saleid="${esc(v.id || '')}" style="color:var(--rust);">🗑</button>
         </td>
       </tr>
     `).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:16px;">Sin registros de venta.</td></tr>`;
@@ -6812,7 +6811,8 @@ function openVentasDetailModal(supIdx, uid, onUpdate){
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
-            <th>#</th><th>Fecha</th><th>Hora</th><th class="num">Cantidad</th><th>Nota</th><th></th>
+            <th>#</th><th>Fecha</th><th>Hora</th><th class="num">Cantidad</th><th>Nota</th>
+            <th title="↩ devuelve stock · 🗑 elimina permanente"></th>
           </tr></thead>
           <tbody id="ventasDetailBody">${rows}</tbody>
         </table>
@@ -6823,6 +6823,7 @@ function openVentasDetailModal(supIdx, uid, onUpdate){
   openModal(buildModalContent());
 
   function attachDeleteBtns(){
+    // ↩ Eliminar venta y DEVOLVER stock
     document.querySelectorAll('.venta-del-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const saleId = btn.dataset.saleid;
@@ -6840,7 +6841,6 @@ function openVentasDetailModal(supIdx, uid, onUpdate){
         });
         if (!isConfirmed) return;
 
-        // Devolver stock y eliminar registro
         p.stock = (Number(p.stock) || 0) + Number(venta.cantidad);
         p.ventas = p.ventas.filter(v => v.id !== saleId);
         p.ventasTotal = getSalesTotal(p);
@@ -6850,10 +6850,48 @@ function openVentasDetailModal(supIdx, uid, onUpdate){
         saveState();
         if (onUpdate) onUpdate();
 
-        // Refrescar contenido del modal
         document.getElementById('modalBody').innerHTML = buildModalContent();
         attachDeleteBtns();
         showToast('success', 'Venta eliminada', `Se devolvieron ${fmtN(venta.cantidad, 0)} unidades al stock.`);
+      });
+    });
+
+    // 🗑 Eliminar PERMANENTEMENTE sin devolver stock (requiere contraseña)
+    document.querySelectorAll('.venta-perm-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const saleId = btn.dataset.saleid;
+        const venta = (p.ventas || []).find(v => v.id === saleId);
+        if (!venta) return;
+
+        const { value: pass } = await Swal.fire({
+          title: 'Eliminar permanentemente',
+          html: `Esta acción <strong>NO devuelve stock</strong>.<br>Ingresa la contraseña para confirmar.`,
+          input: 'password',
+          inputPlaceholder: 'Contraseña',
+          showCancelButton: true,
+          confirmButtonText: 'Eliminar',
+          cancelButtonText: 'Cancelar',
+          customClass: { popup: 'agromin-swal' },
+          inputAttributes: { autocomplete: 'off' }
+        });
+        if (!pass) return;
+        if (pass !== '123') {
+          Swal.fire({ title: 'Contraseña incorrecta', icon: 'error', customClass: { popup: 'agromin-swal' } });
+          return;
+        }
+
+        // Solo eliminar el registro — stock NO cambia
+        p.ventas = p.ventas.filter(v => v.id !== saleId);
+        p.ventasTotal = getSalesTotal(p);
+        p.ultimaVenta = p.ventas.length ? p.ventas[p.ventas.length - 1].fecha : null;
+
+        recalcSupplierMeta(s);
+        saveState();
+        if (onUpdate) onUpdate();
+
+        document.getElementById('modalBody').innerHTML = buildModalContent();
+        attachDeleteBtns();
+        showToast('success', 'Registro eliminado', 'La venta fue eliminada sin modificar el stock.');
       });
     });
   }
