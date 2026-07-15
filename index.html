@@ -7973,11 +7973,13 @@ function openSemillaEditModal(s, supIdx, pi, onSaved){
   document.getElementById('sfCancelBtn').addEventListener('click', closeModal);
   document.getElementById('sfSaveBtn').addEventListener('click', () => {
     const num = id => parseFloat(document.getElementById(id).value) || 0;
+    const oldStock = Number(p.stock) || 0;
     p.producto     = document.getElementById('sf_producto').value.trim() || p.producto;
     p.precioOrigUSD= num('sf_precio');
     p.flete        = num('sf_flete');
     p.contenido    = num('sf_impBolsa');  // impBolsa stored in contenido
-    p.stock        = num('sf_stock');
+    const newStock = num('sf_stock');
+    p.stock        = newStock;
     p.precioSistema= num('sf_pSistema');
     // Recalc stored fields
     const tc   = s.meta.tcComercial || 3.5;
@@ -7988,11 +7990,19 @@ function openSemillaEditModal(s, supIdx, pi, onSaved){
     p.imptoRenta     = p.montoBrutoSoles * rate;
     p.diferencia     = p.precioSistema - p.costoUnit;
     p.estadoStock    = p.stock < 15 ? 'STOCK BAJO' : 'OPTIMO';
+    p.lotes = Array.isArray(p.lotes) ? p.lotes : [];
+    // Registrar venta si el stock bajó
+    const sold = Math.max(oldStock - newStock, 0);
+    if (sold > 0) registerProductSale(s, p, sold, 'Edición de stock semilla');
+    p.prevStock = newStock;
     recalcSupplierMeta(s);
     saveState();
     closeModal();
     if (typeof onSaved === 'function') onSaved();
-    showToast('success', 'Semilla actualizada', 'Los datos fueron guardados correctamente.');
+    const msg = sold > 0
+      ? `Se registraron ${fmtInt(sold)} unidades vendidas. Stock actualizado a ${fmtInt(p.stock)}.`
+      : 'Datos guardados correctamente.';
+    showToast('success', sold > 0 ? 'Venta registrada' : 'Semilla actualizada', msg);
   });
 }
 
