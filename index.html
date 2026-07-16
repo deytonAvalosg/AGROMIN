@@ -5616,14 +5616,15 @@ async function loadFromCloud(){
       const parsed = JSON.parse(data.payload);
 
       // Decidir fuente autoritativa:
-      // - Si la nube tiene MÁS proveedores o productos que BASE_DATA → usar nube (usuario agregó cosas)
-      // - Si BASE_DATA tiene fecha más reciente Y misma o más proveedores → usar BASE_DATA (actualización de código)
-      const cloudSuppliers  = (parsed?.suppliers || []).length;
-      const baseSuppliers   = (BASE_DATA?.suppliers || []).length;
-      const cloudDate = parsed?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
+      // Si todos los proveedores de la nube existen en BASE_DATA Y BASE_DATA tiene fecha más reciente → usar BASE_DATA
+      // Si la nube tiene proveedores que NO están en BASE_DATA → el usuario creó cosas nuevas → usar nube
+      const cloudNames = (parsed?.suppliers || []).map(s => (s.name||'').trim().toLowerCase());
+      const baseNames  = (BASE_DATA?.suppliers || []).map(s => (s.name||'').trim().toLowerCase());
+      const cloudHasNew = cloudNames.some(n => !baseNames.includes(n));
       const baseDate  = BASE_DATA?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
+      const cloudDate = parsed?.suppliers?.[0]?.meta?.fechaReporte || '2000-01-01';
 
-      const useBase = baseDate > cloudDate && baseSuppliers >= cloudSuppliers;
+      const useBase = !cloudHasNew && baseDate > cloudDate;
 
       if (useBase){
         // BASE_DATA es más nuevo — inicializar desde ahí y subir a la nube
