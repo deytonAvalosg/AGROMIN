@@ -5807,15 +5807,6 @@ function registerProductSale(s, product, cantidad, nota = ''){
 
 let DATA = loadPersistedData();
 let SUPPLIERS = DATA.suppliers;
-// Remove supplier named 'Villafuerte' (if present) per user request
-try{
-  const idxVill = (DATA.suppliers||[]).findIndex(s => (s.name||'').toLowerCase().includes('villafuerte'));
-  if (idxVill !== -1){
-    DATA.suppliers.splice(idxVill, 1);
-    SUPPLIERS = DATA.suppliers;
-    saveState();
-  }
-}catch(e){}
 
 // Aggregate low-stock counts computed live from product data (source of truth for UI)
 function isHeaderRow(p){
